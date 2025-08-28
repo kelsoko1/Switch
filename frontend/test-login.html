@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kijumbe Authentication Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        
+        .form-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .credentials {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .credentials h3 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Kijumbe Authentication Test</h1>
+        <p>This page tests the authentication system to ensure it's working correctly for both local and database authentication.</p>
+        
+        <div class="status info" id="serverStatus">
+            🔍 Checking server connection...
+        </div>
+        
+        <div class="credentials">
+            <h3>👑 Super Admin Credentials</h3>
+            <p><strong>Email:</strong> admin@kijumbe.com</p>
+            <p><strong>Password:</strong> admin123456</p>
+            <p><strong>Role:</strong> Super Administrator (full access)</p>
+            <p><em>These credentials are automatically created when the server starts.</em></p>
+        </div>
+        
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" value="admin@kijumbe.com" placeholder="Enter email">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" value="admin123456" placeholder="Enter password">
+        </div>
+        
+        <div>
+            <button onclick="testLogin()" id="loginBtn">🔐 Test Login</button>
+            <button onclick="testHealth()" id="healthBtn">🏥 Test Health</button>
+            <button onclick="clearResults()" id="clearBtn">🧹 Clear Results</button>
+        </div>
+        
+        <div class="result" id="results" style="display: none;">
+            Results will appear here...
+        </div>
+    </div>
+
+    <script>
+        // Check server health on page load
+        window.addEventListener('load', async () => {
+            await testHealth();
+        });
+
+        async function testHealth() {
+            const statusDiv = document.getElementById('serverStatus');
+            const healthBtn = document.getElementById('healthBtn');
+            
+            try {
+                statusDiv.innerHTML = '🔍 Checking server connection...';
+                healthBtn.disabled = true;
+                
+                const response = await fetch('/backend/health');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = '✅ Server connected and running';
+                    statusDiv.className = 'status success';
+                    showResult('Health Check Result', {
+                        status: 'Connected',
+                        message: data.message,
+                        timestamp: data.timestamp,
+                        environment: data.environment
+                    });
+                } else {
+                    throw new Error(`Server responded with ${response.status}`);
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '❌ Server connection failed';
+                statusDiv.className = 'status error';
+                showResult('Health Check Error', {
+                    error: error.message,
+                    details: 'Make sure the backend server is running on port 3000'
+                });
+            } finally {
+                healthBtn.disabled = false;
+            }
+        }
+
+        async function testLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('loginBtn');
+            
+            if (!email || !password) {
+                showResult('Validation Error', { error: 'Please enter both email and password' });
+                return;
+            }
+            
+            try {
+                loginBtn.disabled = true;
+                loginBtn.textContent = '🔐 Logging in...';
+                
+                const response = await fetch('/backend/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('Login Success', {
+                        message: data.message,
+                        user: {
+                            id: data.user.id,
+                            name: data.user.name,
+                            email: data.user.email,
+                            role: data.user.role,
+                            isSuperAdmin: data.user.isSuperAdmin,
+                            status: data.user.status
+                        },
+                        token: data.token ? 'Generated' : 'Not generated',
+                        authSource: data.authSource || 'Not specified'
+                    });
+                    
+                    // Test token verification
+                    await testTokenVerification(data.token);
+                } else {
+                    showResult('Login Failed', {
+                        status: response.status,
+                        error: data.error || 'Unknown error',
+                        details: data.details || 'No additional details'
+                    });
+                }
+            } catch (error) {
+                showResult('Login Error', {
+                    error: error.message,
+                    type: error.name,
+                    details: 'This could be a network error or server issue'
+                });
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = '🔐 Test Login';
+            }
+        }
+
+        async function testTokenVerification(token) {
+            try {
+                const response = await fetch('/backend/auth/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('Token Verification Success', {
+                        message: 'Token is valid and working',
+                        user: data.user,
+                        tokenLength: token.length
+                    });
+                } else {
+                    showResult('Token Verification Failed', {
+                        status: response.status,
+                        error: data.error || 'Unknown error'
+                    });
+                }
+            } catch (error) {
+                showResult('Token Verification Error', {
+                    error: error.message,
+                    details: 'Failed to verify token'
+                });
+            }
+        }
+
+        function showResult(title, data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const resultText = `=== ${title} (${timestamp}) ===\n${JSON.stringify(data, null, 2)}\n\n`;
+            
+            resultsDiv.textContent += resultText;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function clearResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.textContent = '';
+            resultsDiv.style.display = 'none';
+        }
+    </script>
+</body>
+</html>

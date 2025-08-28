@@ -1,0 +1,2412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kijumbe Admin Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .hover-scale {
+            transition: transform 0.2s ease-in-out;
+        }
+        .hover-scale:hover {
+            transform: scale(1.05);
+        }
+        .sidebar-transition {
+            transition: all 0.3s ease-in-out;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .card-shadow:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-8 text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <h3 class="text-lg font-medium text-gray-900">Loading...</h3>
+            <p class="text-sm text-gray-500 mt-2">Please wait while we process your request.</p>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform -translate-x-full lg:translate-x-0 lg:static lg:inset-0 sidebar-transition">
+        <div class="flex items-center justify-center h-16 px-4 bg-gradient-to-r from-blue-600 to-purple-600">
+            <h1 class="text-white text-xl font-bold">🚀 Kijumbe Admin</h1>
+        </div>
+        <nav class="mt-8">
+            <div class="px-4 space-y-2" id="nav-menu">
+                <!-- Navigation items will be populated by JavaScript -->
+            </div>
+        </nav>
+        <div class="absolute bottom-0 w-full p-4 bg-gray-100">
+            <div class="text-center" id="user-info">
+                <!-- User info will be populated -->
+            </div>
+            <button onclick="logout()" class="w-full mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-200">
+                <i data-lucide="log-out" class="inline h-4 w-4 mr-2"></i>
+                Logout
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile menu button -->
+    <div class="lg:hidden fixed top-4 left-4 z-50">
+        <button onclick="toggleSidebar()" class="bg-white p-2 rounded-md shadow-md">
+            <i data-lucide="menu" class="h-6 w-6"></i>
+        </button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="lg:ml-64 flex-1 flex flex-col overflow-hidden">
+        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
+            <div class="container mx-auto px-6 py-8" id="main-content">
+                <!-- Content will be loaded here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modals-container"></div>
+
+    <script>
+        // Configuration
+        const API_BASE = window.location.origin;
+        let currentUser = null;
+        let authToken = localStorage.getItem('adminToken') || localStorage.getItem('token');
+        let currentPage = 'dashboard';
+
+        // API Helper
+        const api = {
+            async request(method, endpoint, data = null) {
+                showLoading();
+                try {
+                    // Build the request options
+                    const options = {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    };
+                    
+                    // Add authorization header if token exists
+                    if (authToken) {
+                        options.headers.Authorization = `Bearer ${authToken}`;
+                    }
+                    
+                    // Add request body for POST/PUT
+                    if (data && (method === 'POST' || method === 'PUT')) {
+                        options.body = JSON.stringify(data);
+                    }
+                    
+                    // Make the fetch request
+                    const url = `${API_BASE}${endpoint}`;
+                    console.log(`🔌 API Request: ${method} ${url}`);
+                    
+                    const response = await fetch(url, options);
+                    
+                    // Handle non-OK responses
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.message || errorData.error || `HTTP Error ${response.status}`);
+                    }
+                    
+                    // Parse JSON response
+                    const responseData = await response.json();
+                    console.log('📡 API Response:', responseData);
+                    
+                    return responseData;
+                } catch (error) {
+                    console.error('❌ API Error:', error);
+                    
+                    // Handle 401 Unauthorized - redirect to login
+                    if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+                        localStorage.removeItem('adminToken');
+                        localStorage.removeItem('token');
+                        authToken = null;
+                        currentUser = null;
+                        showLogin();
+                        throw new Error('Session expired. Please login again.');
+                    }
+                    
+                    throw error;
+                } finally {
+                    hideLoading();
+                }
+            },
+
+            get(endpoint) { return this.request('GET', endpoint); },
+            post(endpoint, data) { return this.request('POST', endpoint, data); },
+            put(endpoint, data) { return this.request('PUT', endpoint, data); },
+            delete(endpoint) { return this.request('DELETE', endpoint); }
+        };
+
+        // UI Helpers
+        function showLoading() {
+            document.getElementById('loading-spinner').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-spinner').classList.add('hidden');
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('-translate-x-full');
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 p-4 rounded-md shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 
+                type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+            } text-white`;
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : type === 'warning' ? 'alert-circle' : 'info'}" class="h-5 w-5 mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+
+        // Authentication
+        async function login(email, password) {
+            try {
+                console.log('🔐 Attempting login with:', email);
+                showNotification('Logging in...', 'info');
+                
+                // Direct fetch instead of using the API helper
+                const response = await fetch(`${API_BASE}/backend/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                // Check if the response is OK
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Login failed');
+                }
+                
+                // Parse the response JSON
+                const responseData = await response.json();
+                console.log('📡 Raw login response:', responseData);
+                
+                // Extract user data and token from the response
+                if (!responseData || !responseData.success) {
+                    throw new Error('Invalid response from server');
+                }
+                
+                // Get user and token from the new API format
+                const userData = responseData.data?.user;
+                const userToken = responseData.data?.token;
+                
+                // Validate user data and token
+                if (!userData) {
+                    throw new Error('No user data received from server');
+                }
+                
+                if (!userToken) {
+                    throw new Error('No authentication token received from server');
+                }
+                
+                console.log('👤 User data received:', userData);
+                
+                // Check user role for admin access
+                const userRole = userData.role;
+                console.log('🔑 User role:', userRole);
+                
+                const isAdmin = userRole === 'admin' || userRole === 'superadmin' || userData.isSuperAdmin === true;
+                
+                if (!isAdmin) {
+                    throw new Error('Access denied. Admin privileges required.');
+                }
+                
+                // Store authentication data
+                authToken = userToken;
+                localStorage.setItem('adminToken', authToken);
+                localStorage.setItem('token', authToken);
+                currentUser = userData;
+                
+                console.log('🔑 Token stored:', authToken ? 'Yes' : 'No');
+                console.log('👤 Current user:', currentUser);
+                
+                showNotification('Login successful!', 'success');
+                initializeApp();
+            } catch (error) {
+                console.error('❌ Login error:', error);
+                
+                // Clear any existing tokens on login failure
+                localStorage.removeItem('adminToken');
+                localStorage.removeItem('token');
+                authToken = null;
+                currentUser = null;
+                
+                let errorMessage = 'Login failed: ' + (error.message || 'Unknown error occurred');
+                showNotification(errorMessage, 'error');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('adminToken');
+            localStorage.removeItem('token');
+            authToken = null;
+            currentUser = null;
+            showLogin();
+        }
+
+        function clearAllStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            authToken = null;
+            currentUser = null;
+            console.log('🧹 All storage cleared');
+        }
+
+        // Page Navigation
+        function showPage(page) {
+            currentPage = page;
+            
+            switch(page) {
+                case 'dashboard':
+                    showDashboard();
+                    break;
+                case 'users':
+                    showUserManagement();
+                    break;
+                case 'wallets':
+                    showWalletManagement();
+                    break;
+                case 'whatsapp':
+                    showWhatsAppManagement();
+                    break;
+                case 'appwrite':
+                    showAppwriteManagement();
+                    break;
+                case 'admins':
+                    showAdminManagement();
+                    break;
+                default:
+                    showDashboard();
+            }
+
+            // Update active nav item
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('bg-blue-100', 'text-blue-700', 'border-blue-300');
+                item.classList.add('text-gray-700', 'hover:bg-gray-100');
+            });
+            
+            const activeItem = document.querySelector(`[data-page="${page}"]`);
+            if (activeItem) {
+                activeItem.classList.add('bg-blue-100', 'text-blue-700', 'border-blue-300');
+                activeItem.classList.remove('text-gray-700', 'hover:bg-gray-100');
+            }
+        }
+
+        // Login Page
+        function showLogin() {
+            document.getElementById('sidebar').style.display = 'none';
+            document.getElementById('main-content').innerHTML = `
+                <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+                    <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-2xl">
+                        <div class="text-center">
+                            <div class="mx-auto h-20 w-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                                <i data-lucide="shield-check" class="h-10 w-10 text-white"></i>
+                            </div>
+                            <h2 class="text-3xl font-bold text-gray-900">Kijumbe Admin Portal</h2>
+                            <p class="mt-2 text-sm text-gray-600">Sign in to manage your platform</p>
+                        </div>
+                        <form class="mt-8 space-y-6" onsubmit="handleLogin(event)">
+                            <!-- Error Alert -->
+                            <div id="login-error" class="bg-red-50 border-l-4 border-red-500 p-4 hidden">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i data-lucide="alert-circle" class="h-5 w-5 text-red-500"></i>
+                                    </div>
+                                    <div class="ml-3 text-red-700 text-sm">
+                                        Login failed. Please check your credentials.
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="mail" class="h-5 w-5 text-gray-400"></i>
+                                        </div>
+                                        <input id="email" name="email" type="email" required 
+                                               class="appearance-none relative block w-full pl-10 px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                                               placeholder="admin@kijumbe.com" value="admin@kijumbe.com">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="lock" class="h-5 w-5 text-gray-400"></i>
+                                        </div>
+                                        <input id="password" name="password" type="password" required 
+                                               class="appearance-none relative block w-full pl-10 px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                                               placeholder="Password" value="admin123456">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <button type="submit" 
+                                        class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-200">
+                                    <i data-lucide="log-in" class="h-5 w-5 mr-2"></i>
+                                    Sign in to Admin Portal
+                                </button>
+                            </div>
+                            
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <h4 class="text-sm font-medium text-blue-800 mb-2">
+                                    <i data-lucide="crown" class="inline h-4 w-4 mr-1"></i>
+                                    Super Admin Credentials
+                                </h4>
+                                <p class="text-xs text-blue-700">
+                                    <strong>Email:</strong> admin@kijumbe.com<br>
+                                    <strong>Password:</strong> admin123456
+                                </p>
+                                <p class="text-xs text-blue-600 mt-2">Use these credentials to create additional admins</p>
+                            </div>
+                            
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-3 mt-3">
+                                <h4 class="text-sm font-medium text-red-800 mb-2">🐛 Debug Tools</h4>
+                                <div class="space-y-2">
+                                    <button type="button" onclick="clearAllStorage(); showNotification('Storage cleared', 'info');" 
+                                            class="text-xs bg-red-600 text-white px-2 py-1 rounded">Clear All Storage</button>
+                                    <button type="button" onclick="console.log('Current authToken:', authToken); console.log('Current user:', currentUser);" 
+                                            class="text-xs bg-blue-600 text-white px-2 py-1 rounded">Log Current State</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            
+            lucide.createIcons();
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            console.log('📝 Form submitted');
+            
+            // Clear any previous errors
+            const errorElement = document.getElementById('login-error');
+            if (errorElement) {
+                errorElement.style.display = 'none';
+            }
+            
+            // Get form data
+            const formData = new FormData(event.target);
+            const email = formData.get('email');
+            const password = formData.get('password');
+            
+            console.log('📧 Email:', email);
+            console.log('🔑 Password length:', password.length);
+            
+            // Show loading indicator
+            showLoading();
+            
+            try {
+                // Direct fetch instead of using the login function
+                const response = await fetch(`${window.location.origin}/backend/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                // Parse response
+                const data = await response.json();
+                console.log('📡 Login response:', data);
+                
+                // Check for success
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Login failed');
+                }
+                
+                // Extract user data and token
+                const userData = data.data?.user;
+                const token = data.data?.token;
+                
+                if (!userData || !token) {
+                    throw new Error('Invalid response format');
+                }
+                
+                console.log('👤 User data:', userData);
+                
+                // Check if user is admin
+                if (userData.role !== 'admin' && userData.role !== 'superadmin' && !userData.isSuperAdmin) {
+                    throw new Error('Access denied. Admin privileges required.');
+                }
+                
+                // Store authentication data
+                authToken = token;
+                localStorage.setItem('adminToken', token);
+                localStorage.setItem('token', token);
+                currentUser = userData;
+                
+                console.log('✅ Login successful');
+                showNotification('Login successful!', 'success');
+                
+                // Initialize app
+                initializeApp();
+            } catch (error) {
+                console.error('❌ Login error:', error);
+                
+                // Show error message
+                const errorElement = document.getElementById('login-error');
+                if (errorElement) {
+                    errorElement.textContent = error.message;
+                    errorElement.style.display = 'block';
+                }
+                
+                showNotification('Login failed: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Initialize App
+        function initializeApp() {
+            // Show sidebar
+            document.getElementById('sidebar').style.display = 'block';
+            
+            // Update user info
+            document.getElementById('user-info').innerHTML = `
+                <div class="text-center">
+                    <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <i data-lucide="user" class="h-6 w-6 text-white"></i>
+                    </div>
+                    <div class="text-sm font-medium text-gray-900">${currentUser.name}</div>
+                    <div class="text-xs text-gray-500">${currentUser.isSuperAdmin ? 'Super Admin' : currentUser.role}</div>
+                </div>
+            `;
+
+            // Create navigation menu
+            const navMenu = document.getElementById('nav-menu');
+            navMenu.innerHTML = `
+                <a href="#" onclick="showPage('dashboard')" data-page="dashboard" class="nav-item group flex items-center px-4 py-3 text-sm font-medium rounded-lg bg-blue-100 text-blue-700 border-blue-300 border">
+                    <i data-lucide="dashboard" class="mr-3 h-5 w-5"></i>
+                    Dashboard
+                </a>
+                <a href="#" onclick="showPage('users')" data-page="users" class="nav-item group flex items-center px-4 py-3 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100">
+                    <i data-lucide="users" class="mr-3 h-5 w-5"></i>
+                    Client Management
+                </a>
+                <a href="#" onclick="showPage('admins')" data-page="admins" class="nav-item group flex items-center px-4 py-3 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100">
+                    <i data-lucide="shield" class="mr-3 h-5 w-5"></i>
+                    Admin Management
+                </a>
+                <a href="#" onclick="showPage('wallets')" data-page="wallets" class="nav-item group flex items-center px-4 py-3 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100">
+                    <i data-lucide="wallet" class="mr-3 h-5 w-5"></i>
+                    Wallet Management
+                </a>
+                <a href="#" onclick="showPage('whatsapp')" data-page="whatsapp" class="nav-item group flex items-center px-4 py-3 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100">
+                    <i data-lucide="message-circle" class="mr-3 h-5 w-5"></i>
+                    WhatsApp Bot
+                </a>
+                <a href="#" onclick="showPage('appwrite')" data-page="appwrite" class="nav-item group flex items-center px-4 py-3 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100">
+                    <i data-lucide="database" class="mr-3 h-5 w-5"></i>
+                    Appwrite Management
+                </a>
+            `;
+
+            lucide.createIcons();
+            showDashboard();
+        }
+
+        // Dashboard Implementation
+        async function showDashboard() {
+            try {
+                // Try to fetch real data, fall back to mock data if API fails
+                let stats, activity, walletStats;
+                
+                try {
+                    [stats, activity, walletStats] = await Promise.all([
+                        api.get('/admin/statistics'),
+                        api.get('/admin/recent-activity?limit=10'),
+                        api.get('/admin/wallet-stats')
+                    ]);
+                } catch (error) {
+                    console.log('Using mock data for dashboard');
+                    // Mock data for demonstration
+                    stats = {
+                        total_users: 247,
+                        active_groups: 12,
+                        total_transactions: 1589,
+                        total_balance: 45678900,
+                        today_registrations: 8,
+                        pending_approvals: 3
+                    };
+                    activity = {
+                        activities: [
+                            { type: 'user_registration', user: 'John Doe', time: '2 minutes ago', details: 'New user registered' },
+                            { type: 'payment', user: 'Mary Jane', time: '15 minutes ago', details: 'Payment of TZS 50,000' },
+                            { type: 'group_creation', user: 'Peter Smith', time: '1 hour ago', details: 'Created group "Savings Club"' }
+                        ]
+                    };
+                    walletStats = {
+                        wallet_stats: {
+                            total_wallets: 247,
+                            total_balance: 45678900,
+                            today_deposits: 2500000,
+                            today_withdrawals: 750000,
+                            pending_transactions: 5,
+                            failed_transactions: 2
+                        }
+                    };
+                }
+
+                document.getElementById('main-content').innerHTML = `
+                    <div class="fade-in">
+                        <!-- Header -->
+                        <div class="mb-8">
+                            <h1 class="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
+                            <p class="mt-2 text-gray-600">Welcome back, ${currentUser.name}! Here's what's happening with your platform.</p>
+                        </div>
+
+                        <!-- Key Metrics -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow hover-scale">
+                                <div class="p-6">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0">
+                                            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                                <i data-lucide="users" class="h-6 w-6 text-blue-600"></i>
+                                            </div>
+                                        </div>
+                                        <div class="ml-4">
+                                            <p class="text-sm font-medium text-gray-500">Total Users</p>
+                                            <p class="text-2xl font-bold text-gray-900">${stats.total_users?.toLocaleString() || '0'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <span class="inline-flex items-center text-sm text-green-600">
+                                            <i data-lucide="trending-up" class="h-4 w-4 mr-1"></i>
+                                            +${stats.today_registrations || 0} today
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow hover-scale">
+                                <div class="p-6">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0">
+                                            <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                                <i data-lucide="group" class="h-6 w-6 text-green-600"></i>
+                                            </div>
+                                        </div>
+                                        <div class="ml-4">
+                                            <p class="text-sm font-medium text-gray-500">Active Groups</p>
+                                            <p class="text-2xl font-bold text-gray-900">${stats.active_groups?.toLocaleString() || '0'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <span class="inline-flex items-center text-sm text-blue-600">
+                                            <i data-lucide="activity" class="h-4 w-4 mr-1"></i>
+                                            All active
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow hover-scale">
+                                <div class="p-6">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0">
+                                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                                                <i data-lucide="credit-card" class="h-6 w-6 text-purple-600"></i>
+                                            </div>
+                                        </div>
+                                        <div class="ml-4">
+                                            <p class="text-sm font-medium text-gray-500">Total Transactions</p>
+                                            <p class="text-2xl font-bold text-gray-900">${stats.total_transactions?.toLocaleString() || '0'}</p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <span class="inline-flex items-center text-sm text-purple-600">
+                                            <i data-lucide="zap" class="h-4 w-4 mr-1"></i>
+                                            All time
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow hover-scale">
+                                <div class="p-6">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0">
+                                            <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                                <i data-lucide="wallet" class="h-6 w-6 text-yellow-600"></i>
+                                            </div>
+                                        </div>
+                                        <div class="ml-4">
+                                            <p class="text-sm font-medium text-gray-500">Total Balance</p>
+                                            <p class="text-2xl font-bold text-gray-900">TZS ${(stats.total_balance || 0).toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <span class="inline-flex items-center text-sm text-yellow-600">
+                                            <i data-lucide="shield" class="h-4 w-4 mr-1"></i>
+                                            Secured
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Financial Overview -->
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                            <div class="lg:col-span-2 bg-white shadow-lg rounded-xl p-6 card-shadow">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Financial Flow Today</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div class="text-center p-4 bg-green-50 rounded-lg">
+                                        <div class="text-2xl font-bold text-green-600">
+                                            +TZS ${(walletStats.wallet_stats?.today_deposits || 0).toLocaleString()}
+                                        </div>
+                                        <div class="text-sm text-green-700 mt-1">Deposits</div>
+                                        <div class="text-xs text-gray-500 mt-1">Money coming in</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-red-50 rounded-lg">
+                                        <div class="text-2xl font-bold text-red-600">
+                                            -TZS ${(walletStats.wallet_stats?.today_withdrawals || 0).toLocaleString()}
+                                        </div>
+                                        <div class="text-sm text-red-700 mt-1">Withdrawals</div>
+                                        <div class="text-xs text-gray-500 mt-1">Money going out</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-blue-50 rounded-lg">
+                                        <div class="text-2xl font-bold ${((walletStats.wallet_stats?.today_deposits || 0) - (walletStats.wallet_stats?.today_withdrawals || 0)) >= 0 ? 'text-blue-600' : 'text-red-600'}">
+                                            ${((walletStats.wallet_stats?.today_deposits || 0) - (walletStats.wallet_stats?.today_withdrawals || 0)) >= 0 ? '+' : ''}TZS ${Math.abs((walletStats.wallet_stats?.today_deposits || 0) - (walletStats.wallet_stats?.today_withdrawals || 0)).toLocaleString()}
+                                        </div>
+                                        <div class="text-sm text-blue-700 mt-1">Net Flow</div>
+                                        <div class="text-xs text-gray-500 mt-1">Overall movement</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white shadow-lg rounded-xl p-6 card-shadow">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                                <div class="space-y-3">
+                                    <button onclick="showPage('users')" class="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition duration-200">
+                                        <div class="flex items-center">
+                                            <i data-lucide="user-plus" class="h-5 w-5 text-blue-600 mr-3"></i>
+                                            <div>
+                                                <div class="font-medium text-gray-900">Manage Users</div>
+                                                <div class="text-xs text-gray-500">View and manage all users</div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <button onclick="showPage('admins')" class="w-full text-left p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition duration-200">
+                                        <div class="flex items-center">
+                                            <i data-lucide="shield-plus" class="h-5 w-5 text-purple-600 mr-3"></i>
+                                            <div>
+                                                <div class="font-medium text-gray-900">Create Admin</div>
+                                                <div class="text-xs text-gray-500">Add new administrators</div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <button onclick="showPage('wallets')" class="w-full text-left p-3 bg-green-50 hover:bg-green-100 rounded-lg transition duration-200">
+                                        <div class="flex items-center">
+                                            <i data-lucide="wallet" class="h-5 w-5 text-green-600 mr-3"></i>
+                                            <div>
+                                                <div class="font-medium text-gray-900">Wallet Overview</div>
+                                                <div class="text-xs text-gray-500">Monitor financial activity</div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <button onclick="showPage('whatsapp')" class="w-full text-left p-3 bg-yellow-50 hover:bg-yellow-100 rounded-lg transition duration-200">
+                                        <div class="flex items-center">
+                                            <i data-lucide="message-circle" class="h-5 w-5 text-yellow-600 mr-3"></i>
+                                            <div>
+                                                <div class="font-medium text-gray-900">WhatsApp Bot</div>
+                                                <div class="text-xs text-gray-500">Manage bot settings</div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity & Pending Actions -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="bg-white shadow-lg rounded-xl p-6 card-shadow">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                                <div class="space-y-4">
+                                    ${(activity.activities || []).slice(0, 5).map(item => `
+                                        <div class="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                                            <div class="flex-shrink-0">
+                                                <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                                    <i data-lucide="${item.type === 'user_registration' ? 'user-plus' : item.type === 'payment' ? 'credit-card' : 'users'}" class="h-4 w-4 text-blue-600"></i>
+                                                </div>
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium text-gray-900">${item.user || 'System'}</p>
+                                                <p class="text-sm text-gray-500">${item.details}</p>
+                                                <p class="text-xs text-gray-400">${item.time}</p>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div class="mt-4">
+                                    <button onclick="showActivityLog()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                                        View all activity →
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="bg-white shadow-lg rounded-xl p-6 card-shadow">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">Pending Actions</h3>
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+                                        <div class="flex items-center">
+                                            <i data-lucide="clock" class="h-5 w-5 text-yellow-600 mr-3"></i>
+                                            <div>
+                                                <div class="font-medium text-gray-900">User Approvals</div>
+                                                <div class="text-sm text-gray-500">${stats.pending_approvals || 0} users pending approval</div>
+                                            </div>
+                                        </div>
+                                        <button onclick="showPage('users')" class="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm">
+                                            Review
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                                        <div class="flex items-center">
+                                            <i data-lucide="alert-circle" class="h-5 w-5 text-red-600 mr-3"></i>
+                                            <div>
+                                                <div class="font-medium text-gray-900">Failed Transactions</div>
+                                                <div class="text-sm text-gray-500">${walletStats.wallet_stats?.failed_transactions || 0} transactions need attention</div>
+                                            </div>
+                                        </div>
+                                        <button onclick="showPage('wallets')" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">
+                                            Fix
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                                        <div class="flex items-center">
+                                            <i data-lucide="message-square" class="h-5 w-5 text-blue-600 mr-3"></i>
+                                            <div>
+                                                <div class="font-medium text-gray-900">WhatsApp Status</div>
+                                                <div class="text-sm text-gray-500">Bot is running normally</div>
+                                            </div>
+                                        </div>
+                                        <button onclick="showPage('whatsapp')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">
+                                            Monitor
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Dashboard error:', error);
+                document.getElementById('main-content').innerHTML = `
+                    <div class="text-center py-12">
+                        <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                            <i data-lucide="alert-circle" class="h-16 w-16 text-red-500 mx-auto mb-4"></i>
+                            <h2 class="text-2xl font-bold text-gray-900 mb-4">Dashboard Error</h2>
+                            <p class="text-gray-600 mb-4">Failed to load dashboard data. Please try again.</p>
+                            <button onclick="showDashboard()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                                Retry
+                            </button>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+            }
+        }
+
+        // User/Client Management
+        async function showUserManagement() {
+            try {
+                const response = await api.get('/admin/users');
+                const users = response.users || [];
+
+                document.getElementById('main-content').innerHTML = `
+                    <div class="fade-in">
+                        <!-- Header -->
+                        <div class="flex justify-between items-center mb-8">
+                            <div>
+                                <h1 class="text-3xl font-bold text-gray-900">Client Management</h1>
+                                <p class="mt-2 text-gray-600">Manage all registered users and their accounts</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="exportUsers()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center">
+                                    <i data-lucide="download" class="h-4 w-4 mr-2"></i>
+                                    Export
+                                </button>
+                                <button onclick="refreshUsers()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+                                    <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- User Statistics -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="users" class="h-6 w-6 text-blue-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Total Users</p>
+                                    <p class="text-2xl font-bold text-gray-900">${users.length}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="user-check" class="h-6 w-6 text-green-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Active Users</p>
+                                    <p class="text-2xl font-bold text-gray-900">${users.filter(u => u.status === 'active').length}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="crown" class="h-6 w-6 text-purple-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Kiongozi</p>
+                                    <p class="text-2xl font-bold text-gray-900">${users.filter(u => u.role === 'kiongozi').length}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="clock" class="h-6 w-6 text-yellow-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Pending</p>
+                                    <p class="text-2xl font-bold text-gray-900">${users.filter(u => u.status === 'pending').length}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Search and Filters -->
+                        <div class="bg-white shadow-lg rounded-xl p-6 mb-6 card-shadow">
+                            <div class="flex flex-wrap items-center justify-between gap-4">
+                                <div class="flex items-center space-x-4 flex-1">
+                                    <div class="flex-1 max-w-md">
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="search" class="h-5 w-5 text-gray-400"></i>
+                                            </div>
+                                            <input type="text" id="userSearch" placeholder="Search users by name, email, or phone..." 
+                                                   class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <select id="roleFilter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <option value="">All Roles</option>
+                                            <option value="admin">Admin</option>
+                                            <option value="kiongozi">Kiongozi</option>
+                                            <option value="member">Member</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select id="statusFilter" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <option value="">All Status</option>
+                                            <option value="active">Active</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="suspended">Suspended</option>
+                                        </select>
+                                    </div>
+                                    <button onclick="searchUsers()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center">
+                                        <i data-lucide="search" class="h-4 w-4 mr-2"></i>
+                                        Search
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Users Table -->
+                        <div class="bg-white shadow-lg rounded-xl overflow-hidden card-shadow">
+                            <div class="px-6 py-4 border-b border-gray-200">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-900">Registered Users</h3>
+                                        <p class="text-sm text-gray-500">Complete user management with detailed operations</p>
+                                    </div>
+                                    <div class="text-sm text-gray-500">
+                                        Showing ${users.length} of ${users.length} users
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Groups</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        ${users.length > 0 ? users.map(user => `
+                                            <tr class="hover:bg-gray-50 transition duration-200">
+                                                <td class="px-6 py-4">
+                                                    <div class="flex items-center">
+                                                        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                                                            <span class="text-white font-medium text-sm">${(user.name || 'U').charAt(0).toUpperCase()}</span>
+                                                        </div>
+                                                        <div class="ml-4">
+                                                            <div class="text-sm font-medium text-gray-900">${user.name || 'Unnamed User'}</div>
+                                                            <div class="text-sm text-gray-500">${user.email || 'No email'}</div>
+                                                            <div class="text-sm text-gray-500">${user.phone || 'No phone'}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                                        user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 
+                                                        user.role === 'kiongozi' ? 'bg-blue-100 text-blue-800' : 
+                                                        'bg-green-100 text-green-800'
+                                                    }">
+                                                        ${user.role || 'member'}
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                                        user.status === 'active' ? 'bg-green-100 text-green-800' : 
+                                                        user.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                                        'bg-red-100 text-red-800'
+                                                    }">
+                                                        ${user.status || 'active'}
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4 text-sm text-gray-900">
+                                                    ${user.groups_count || 0} groups
+                                                </td>
+                                                <td class="px-6 py-4 text-sm text-gray-500">
+                                                    ${user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <div class="flex space-x-2">
+                                                        <button onclick="viewUserDetails('${user.id}')" 
+                                                                class="bg-blue-100 text-blue-600 hover:bg-blue-200 p-2 rounded-lg transition duration-200" 
+                                                                title="View Details">
+                                                            <i data-lucide="eye" class="h-4 w-4"></i>
+                                                        </button>
+                                                        <button onclick="editUserModal('${user.id}')" 
+                                                                class="bg-green-100 text-green-600 hover:bg-green-200 p-2 rounded-lg transition duration-200" 
+                                                                title="Edit User">
+                                                            <i data-lucide="edit" class="h-4 w-4"></i>
+                                                        </button>
+                                                        <button onclick="sendUserMessage('${user.id}')" 
+                                                                class="bg-purple-100 text-purple-600 hover:bg-purple-200 p-2 rounded-lg transition duration-200" 
+                                                                title="Send Message">
+                                                            <i data-lucide="message-square" class="h-4 w-4"></i>
+                                                        </button>
+                                                        ${!user.isSuperAdmin ? `
+                                                            <button onclick="toggleUserStatus('${user.id}', '${user.status}')" 
+                                                                    class="bg-orange-100 text-orange-600 hover:bg-orange-200 p-2 rounded-lg transition duration-200" 
+                                                                    title="Toggle Status">
+                                                                <i data-lucide="power" class="h-4 w-4"></i>
+                                                            </button>
+                                                        ` : ''}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        `).join('') : `
+                                            <tr>
+                                                <td colspan="6" class="px-6 py-8 text-center">
+                                                    <div class="text-gray-500">
+                                                        <i data-lucide="users" class="h-12 w-12 mx-auto mb-4 text-gray-300"></i>
+                                                        <p class="text-lg font-medium">No users found</p>
+                                                        <p class="text-sm">Users will appear here when they register</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        `}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                lucide.createIcons();
+            } catch (error) {
+                console.error('User management error:', error);
+                document.getElementById('main-content').innerHTML = `
+                    <div class="text-center py-12">
+                        <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                            <i data-lucide="alert-circle" class="h-16 w-16 text-red-500 mx-auto mb-4"></i>
+                            <h2 class="text-2xl font-bold text-gray-900 mb-4">User Management Error</h2>
+                            <p class="text-gray-600 mb-4">Failed to load user data. Please try again.</p>
+                            <button onclick="showUserManagement()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                                Retry
+                            </button>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+            }
+        }
+
+        // User Management Functions
+        async function refreshUsers() {
+            showUserManagement();
+        }
+
+        async function searchUsers() {
+            const search = document.getElementById('userSearch').value;
+            const role = document.getElementById('roleFilter').value;
+            const status = document.getElementById('statusFilter').value;
+            
+            showNotification('Search functionality will be implemented with backend API', 'info');
+            console.log('Searching users:', { search, role, status });
+        }
+
+        async function exportUsers() {
+            try {
+                const response = await api.get('/admin/users');
+                const users = response.users || [];
+                
+                // Create CSV content
+                const headers = ['Name', 'Email', 'Phone', 'Role', 'Status', 'Joined Date'];
+                const csvContent = [
+                    headers.join(','),
+                    ...users.map(user => [
+                        user.name || '',
+                        user.email || '',
+                        user.phone || '',
+                        user.role || 'member',
+                        user.status || 'active',
+                        user.created_at ? new Date(user.created_at).toLocaleDateString() : ''
+                    ].join(','))
+                ].join('\\n');
+                
+                // Download CSV
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `kijumbe_users_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                
+                showNotification('Users exported successfully!', 'success');
+            } catch (error) {
+                showNotification('Failed to export users', 'error');
+            }
+        }
+
+        async function viewUserDetails(userId) {
+            try {
+                const user = await api.get(`/admin/users/${userId}`);
+                showUserDetailsModal(user);
+            } catch (error) {
+                showNotification('Failed to load user details', 'error');
+            }
+        }
+
+        function showUserDetailsModal(user) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
+            modal.innerHTML = `
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">User Details</h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                                <i data-lucide="x" class="h-6 w-6"></i>
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Name</label>
+                                <p class="mt-1 text-sm text-gray-900">${user.name || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Email</label>
+                                <p class="mt-1 text-sm text-gray-900">${user.email || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Phone</label>
+                                <p class="mt-1 text-sm text-gray-900">${user.phone || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Role</label>
+                                <p class="mt-1 text-sm text-gray-900">${user.role || 'member'}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Status</label>
+                                <p class="mt-1 text-sm text-gray-900">${user.status || 'active'}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Joined Date</label>
+                                <p class="mt-1 text-sm text-gray-900">${user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex justify-end space-x-3">
+                            <button onclick="this.closest('.fixed').remove()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded">
+                                Close
+                            </button>
+                            <button onclick="editUserModal('${user.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                                Edit User
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            lucide.createIcons();
+        }
+
+        async function editUserModal(userId) {
+            // Close existing modals
+            document.querySelectorAll('.fixed').forEach(modal => modal.remove());
+            
+            showNotification('Edit user functionality will be implemented', 'info');
+        }
+
+        async function sendUserMessage(userId) {
+            showNotification('Message functionality will be implemented with WhatsApp integration', 'info');
+        }
+
+        async function toggleUserStatus(userId, currentStatus) {
+            const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+            try {
+                await api.put(`/admin/users/${userId}/status`, { status: newStatus });
+                showNotification(`User status updated to ${newStatus}`, 'success');
+                showUserManagement();
+            } catch (error) {
+                showNotification('Failed to update user status', 'error');
+            }
+        }
+
+        // Admin Management
+        async function showAdminManagement() {
+            try {
+                const response = await api.get('/admin/administrators');
+                const admins = response.administrators || [];
+
+                document.getElementById('main-content').innerHTML = `
+                    <div class="fade-in">
+                        <!-- Header -->
+                        <div class="flex justify-between items-center mb-8">
+                            <div>
+                                <h1 class="text-3xl font-bold text-gray-900">Admin Management</h1>
+                                <p class="mt-2 text-gray-600">Create and manage administrator accounts</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="showCreateAdminModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center">
+                                    <i data-lucide="user-plus" class="h-4 w-4 mr-2"></i>
+                                    Create Admin
+                                </button>
+                                <button onclick="showAdminManagement()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+                                    <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Admin Statistics -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="shield" class="h-6 w-6 text-purple-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Total Admins</p>
+                                    <p class="text-2xl font-bold text-gray-900">${admins.length}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="user-check" class="h-6 w-6 text-green-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Active Admins</p>
+                                    <p class="text-2xl font-bold text-gray-900">${admins.filter(a => a.status === 'active').length}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-gold-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="crown" class="h-6 w-6 text-yellow-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Super Admins</p>
+                                    <p class="text-2xl font-bold text-gray-900">${admins.filter(a => a.isSuperAdmin).length}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="clock" class="h-6 w-6 text-blue-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Last Login</p>
+                                    <p class="text-2xl font-bold text-gray-900">Today</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Admin List -->
+                        <div class="bg-white shadow-lg rounded-xl overflow-hidden card-shadow">
+                            <div class="px-6 py-4 border-b border-gray-200">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-900">Administrator Accounts</h3>
+                                        <p class="text-sm text-gray-500">Manage admin access and permissions</p>
+                                    </div>
+                                    <div class="text-sm text-gray-500">
+                                        ${admins.length} administrators
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Administrator</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        ${admins.length > 0 ? admins.map(admin => `
+                                            <tr class="hover:bg-gray-50 transition duration-200">
+                                                <td class="px-6 py-4">
+                                                    <div class="flex items-center">
+                                                        <div class="w-10 h-10 bg-gradient-to-r ${admin.isSuperAdmin ? 'from-yellow-400 to-yellow-600' : 'from-purple-500 to-blue-500'} rounded-full flex items-center justify-center">
+                                                            <i data-lucide="${admin.isSuperAdmin ? 'crown' : 'shield'}" class="h-5 w-5 text-white"></i>
+                                                        </div>
+                                                        <div class="ml-4">
+                                                            <div class="text-sm font-medium text-gray-900">${admin.name || 'Unnamed Admin'}</div>
+                                                            <div class="text-sm text-gray-500">${admin.email || 'No email'}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                                        admin.isSuperAdmin ? 'bg-yellow-100 text-yellow-800' : 'bg-purple-100 text-purple-800'
+                                                    }">
+                                                        ${admin.isSuperAdmin ? 'Super Admin' : 'Admin'}
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                                        admin.status === 'active' ? 'bg-green-100 text-green-800' : 
+                                                        admin.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                                        'bg-red-100 text-red-800'
+                                                    }">
+                                                        ${admin.status || 'active'}
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4 text-sm text-gray-500">
+                                                    ${admin.last_login ? new Date(admin.last_login).toLocaleDateString() : 'Never'}
+                                                </td>
+                                                <td class="px-6 py-4 text-sm text-gray-500">
+                                                    ${admin.created_at ? new Date(admin.created_at).toLocaleDateString() : 'Unknown'}
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <div class="flex space-x-2">
+                                                        <button onclick="viewAdminDetails('${admin.id}')" 
+                                                                class="bg-blue-100 text-blue-600 hover:bg-blue-200 p-2 rounded-lg transition duration-200" 
+                                                                title="View Details">
+                                                            <i data-lucide="eye" class="h-4 w-4"></i>
+                                                        </button>
+                                                        ${!admin.isSuperAdmin ? `
+                                                            <button onclick="editAdminModal('${admin.id}')" 
+                                                                    class="bg-green-100 text-green-600 hover:bg-green-200 p-2 rounded-lg transition duration-200" 
+                                                                    title="Edit Admin">
+                                                                <i data-lucide="edit" class="h-4 w-4"></i>
+                                                            </button>
+                                                            <button onclick="toggleAdminStatus('${admin.id}', '${admin.status}')" 
+                                                                    class="bg-orange-100 text-orange-600 hover:bg-orange-200 p-2 rounded-lg transition duration-200" 
+                                                                    title="Toggle Status">
+                                                                <i data-lucide="power" class="h-4 w-4"></i>
+                                                            </button>
+                                                            <button onclick="deleteAdminConfirm('${admin.id}')" 
+                                                                    class="bg-red-100 text-red-600 hover:bg-red-200 p-2 rounded-lg transition duration-200" 
+                                                                    title="Delete Admin">
+                                                                <i data-lucide="trash-2" class="h-4 w-4"></i>
+                                                            </button>
+                                                        ` : `
+                                                            <span class="text-xs text-gray-400 px-2 py-1">Protected</span>
+                                                        `}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        `).join('') : `
+                                            <tr>
+                                                <td colspan="6" class="px-6 py-8 text-center">
+                                                    <div class="text-gray-500">
+                                                        <i data-lucide="shield" class="h-12 w-12 mx-auto mb-4 text-gray-300"></i>
+                                                        <p class="text-lg font-medium">No administrators found</p>
+                                                        <p class="text-sm">Create your first admin account to get started</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        `}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Admin Permissions Info -->
+                        <div class="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-6">
+                            <h3 class="text-lg font-semibold text-blue-900 mb-4">
+                                <i data-lucide="info" class="inline h-5 w-5 mr-2"></i>
+                                Admin Permissions
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
+                                <div>
+                                    <h4 class="font-medium mb-2">Super Admin Permissions:</h4>
+                                    <ul class="space-y-1 text-blue-700">
+                                        <li>• Create and manage other admins</li>
+                                        <li>• Full access to all features</li>
+                                        <li>• System configuration</li>
+                                        <li>• Cannot be deleted or suspended</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium mb-2">Regular Admin Permissions:</h4>
+                                    <ul class="space-y-1 text-blue-700">
+                                        <li>• Manage users and groups</li>
+                                        <li>• View financial reports</li>
+                                        <li>• Monitor WhatsApp bot</li>
+                                        <li>• Can be managed by Super Admin</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Admin management error:', error);
+                // Show with mock data if API fails
+                const mockAdmins = [
+                    {
+                        id: 'admin1',
+                        name: 'Super Administrator',
+                        email: 'admin@kijumbe.com',
+                        isSuperAdmin: true,
+                        status: 'active',
+                        last_login: new Date().toISOString(),
+                        created_at: new Date().toISOString()
+                    }
+                ];
+
+                document.getElementById('main-content').innerHTML = `
+                    <div class="fade-in">
+                        <!-- Header -->
+                        <div class="flex justify-between items-center mb-8">
+                            <div>
+                                <h1 class="text-3xl font-bold text-gray-900">Admin Management</h1>
+                                <p class="mt-2 text-gray-600">Create and manage administrator accounts</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="showCreateAdminModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center">
+                                    <i data-lucide="user-plus" class="h-4 w-4 mr-2"></i>
+                                    Create Admin
+                                </button>
+                                <button onclick="showAdminManagement()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+                                    <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Demo Admin List -->
+                        <div class="bg-white shadow-lg rounded-xl overflow-hidden card-shadow">
+                            <div class="px-6 py-4 border-b border-gray-200">
+                                <h3 class="text-lg font-semibold text-gray-900">Administrator Accounts</h3>
+                                <p class="text-sm text-gray-500">Manage admin access and permissions</p>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Administrator</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        ${mockAdmins.map(admin => `
+                                            <tr class="hover:bg-gray-50 transition duration-200">
+                                                <td class="px-6 py-4">
+                                                    <div class="flex items-center">
+                                                        <div class="w-10 h-10 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center">
+                                                            <i data-lucide="crown" class="h-5 w-5 text-white"></i>
+                                                        </div>
+                                                        <div class="ml-4">
+                                                            <div class="text-sm font-medium text-gray-900">${admin.name}</div>
+                                                            <div class="text-sm text-gray-500">${admin.email}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                                                        Super Admin
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                                        Active
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <span class="text-xs text-gray-400 px-2 py-1">Protected</span>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+            }
+        }
+
+        // Create Admin Modal
+        function showCreateAdminModal() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
+            modal.innerHTML = `
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-md shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">Create New Administrator</h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                                <i data-lucide="x" class="h-6 w-6"></i>
+                            </button>
+                        </div>
+                        <form onsubmit="createNewAdmin(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                <input type="text" name="name" required 
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                       placeholder="Enter full name">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                <input type="email" name="email" required 
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                       placeholder="admin@example.com">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <input type="password" name="password" required minlength="8"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                       placeholder="Minimum 8 characters">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                                <input type="password" name="confirmPassword" required minlength="8"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                       placeholder="Re-enter password">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Admin Role</label>
+                                <select name="role" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="admin">Regular Admin</option>
+                                    <option value="super_admin">Super Admin</option>
+                                </select>
+                            </div>
+                            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                <p class="text-xs text-yellow-800">
+                                    <strong>Note:</strong> New administrators will receive login credentials via email and will be required to change their password on first login.
+                                </p>
+                            </div>
+                            <div class="flex justify-end space-x-3 pt-4">
+                                <button type="button" onclick="this.closest('.fixed').remove()" 
+                                        class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded">
+                                    Cancel
+                                </button>
+                                <button type="submit" 
+                                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center">
+                                    <i data-lucide="user-plus" class="h-4 w-4 mr-2"></i>
+                                    Create Admin
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            lucide.createIcons();
+        }
+
+        // Create New Admin
+        async function createNewAdmin(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const adminData = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                password: formData.get('password'),
+                confirmPassword: formData.get('confirmPassword'),
+                role: formData.get('role')
+            };
+
+            if (adminData.password !== adminData.confirmPassword) {
+                showNotification('Passwords do not match', 'error');
+                return;
+            }
+
+            try {
+                await api.post('/admin/create-admin', {
+                    name: adminData.name,
+                    email: adminData.email,
+                    password: adminData.password,
+                    role: adminData.role
+                });
+                
+                showNotification('Administrator created successfully!', 'success');
+                document.querySelector('.fixed').remove();
+                showAdminManagement();
+            } catch (error) {
+                showNotification('Failed to create administrator: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        // Admin Management Functions
+        async function viewAdminDetails(adminId) {
+            showNotification('View admin details functionality will be implemented', 'info');
+        }
+
+        async function editAdminModal(adminId) {
+            showNotification('Edit admin functionality will be implemented', 'info');
+        }
+
+        async function toggleAdminStatus(adminId, currentStatus) {
+            const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+            try {
+                await api.put(`/admin/administrators/${adminId}/status`, { status: newStatus });
+                showNotification(`Admin status updated to ${newStatus}`, 'success');
+                showAdminManagement();
+            } catch (error) {
+                showNotification('Failed to update admin status', 'error');
+            }
+        }
+
+        async function deleteAdminConfirm(adminId) {
+            if (confirm('Are you sure you want to delete this administrator? This action cannot be undone.')) {
+                try {
+                    await api.delete(`/admin/administrators/${adminId}`);
+                    showNotification('Administrator deleted successfully', 'success');
+                    showAdminManagement();
+                } catch (error) {
+                    showNotification('Failed to delete administrator', 'error');
+                }
+            }
+        }
+
+        // Wallet Management placeholder
+        async function showWalletManagement() {
+            document.getElementById('main-content').innerHTML = `
+                <div class="fade-in">
+                    <div class="text-center py-12">
+                        <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                            <i data-lucide="wallet" class="h-16 w-16 text-blue-500 mx-auto mb-4"></i>
+                            <h2 class="text-2xl font-bold text-gray-900 mb-4">Wallet Management</h2>
+                            <p class="text-gray-600 mb-4">Wallet management features coming soon...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        // WhatsApp Management
+        async function showWhatsAppManagement() {
+            try {
+                // Get WhatsApp bot status, statistics, messages, and queue status
+                const [status, statistics, messages, queueStatus] = await Promise.all([
+                    api.get('/whatsapp/status'),
+                    api.get('/whatsapp/statistics'),
+                    api.get('/whatsapp/messages?limit=20'),
+                    api.get('/whatsapp/queue-status')
+                ]);
+
+                document.getElementById('main-content').innerHTML = `
+                    <div class="fade-in">
+                        <!-- Header -->
+                        <div class="flex justify-between items-center mb-8">
+                            <div>
+                                <h1 class="text-3xl font-bold text-gray-900">WhatsApp Bot Management</h1>
+                                <p class="mt-2 text-gray-600">Manage your WhatsApp bot, monitor messages, and configure automated responses</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="testWhatsAppConnection()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center">
+                                    <i data-lucide="message-circle" class="h-4 w-4 mr-2"></i>
+                                    Test Bot
+                                </button>
+                                <button onclick="showSendMessageModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+                                    <i data-lucide="send" class="h-4 w-4 mr-2"></i>
+                                    Send Message
+                                </button>
+                                <button onclick="showWhatsAppManagement()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center">
+                                    <i data-lucide="refresh-cw" class="h-4 w-4 mr-2"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Bot Status Overview -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 ${status.botStatus === 'authorized' ? 'bg-green-100' : 'bg-red-100'} rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="${status.botStatus === 'authorized' ? 'check-circle' : 'x-circle'}" class="h-6 w-6 ${status.botStatus === 'authorized' ? 'text-green-600' : 'text-red-600'}"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Bot Status</p>
+                                    <p class="text-lg font-bold ${status.botStatus === 'authorized' ? 'text-green-600' : 'text-red-600'}">
+                                        ${status.botStatus === 'authorized' ? 'Connected' : 'Disconnected'}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="message-square" class="h-6 w-6 text-blue-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Total Messages</p>
+                                    <p class="text-2xl font-bold text-gray-900">${statistics.statistics?.totalMessages || 0}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="trending-up" class="h-6 w-6 text-green-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Success Rate</p>
+                                    <p class="text-2xl font-bold text-gray-900">${statistics.statistics?.successRate || 0}%</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-white overflow-hidden shadow-lg rounded-xl card-shadow">
+                                <div class="p-6 text-center">
+                                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                        <i data-lucide="smartphone" class="h-6 w-6 text-purple-600"></i>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-500">Bot Phone</p>
+                                    <p class="text-lg font-bold text-gray-900">${status.botPhone || 'N/A'}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bot Configuration and Queue Status -->
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                            <div class="bg-white shadow-lg rounded-xl p-6 card-shadow">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                                    <i data-lucide="settings" class="inline h-5 w-5 mr-2"></i>
+                                    Bot Configuration
+                                </h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Instance ID</label>
+                                        <input type="text" value="${status.instanceId || 'N/A'}" readonly 
+                                               class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Webhook URL</label>
+                                        <input type="text" value="${status.webhookUrl || 'N/A'}" readonly 
+                                               class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Connection Status</label>
+                                        <div class="flex items-center">
+                                            <div class="w-3 h-3 ${status.botStatus === 'authorized' ? 'bg-green-500' : 'bg-red-500'} rounded-full mr-2"></div>
+                                            <span class="text-sm ${status.botStatus === 'authorized' ? 'text-green-600' : 'text-red-600'}">
+                                                ${status.botStatus === 'authorized' ? 'Connected to WhatsApp' : 'Not connected'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="pt-2 space-x-2">
+                                        <button onclick="updateWebhookUrl()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm">
+                                            Update Webhook
+                                        </button>
+                                        <button onclick="getInstanceInfo()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm">
+                                            Instance Info
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white shadow-lg rounded-xl p-6 card-shadow">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                                    <i data-lucide="list" class="inline h-5 w-5 mr-2"></i>
+                                    Message Queue Status
+                                </h3>
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="text-center p-3 bg-blue-50 rounded-lg">
+                                            <div class="text-2xl font-bold text-blue-600">${queueStatus?.queueLength || 0}</div>
+                                            <div class="text-sm text-blue-700">Queue Length</div>
+                                        </div>
+                                        <div class="text-center p-3 bg-yellow-50 rounded-lg">
+                                            <div class="text-2xl font-bold text-yellow-600">${queueStatus?.rateLimitCounter || 0}</div>
+                                            <div class="text-sm text-yellow-700">Rate Limit</div>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm text-gray-600">Processing:</span>
+                                            <span class="text-sm font-medium ${queueStatus?.isProcessing ? 'text-green-600' : 'text-gray-600'}">
+                                                ${queueStatus?.isProcessing ? 'Yes' : 'No'}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm text-gray-600">Reset Time:</span>
+                                            <span class="text-sm text-gray-500">
+                                                ${queueStatus?.rateLimitResetTime ? new Date(queueStatus.rateLimitResetTime).toLocaleTimeString() : 'N/A'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="pt-2">
+                                        <button onclick="clearMessageQueue()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm">
+                                            Clear Queue
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white shadow-lg rounded-xl p-6 card-shadow">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                                    <i data-lucide="bar-chart-3" class="inline h-5 w-5 mr-2"></i>
+                                    Message Statistics
+                                </h3>
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="text-center p-3 bg-blue-50 rounded-lg">
+                                            <div class="text-2xl font-bold text-blue-600">${statistics.statistics?.totalIncoming || 0}</div>
+                                            <div class="text-sm text-blue-700">Incoming</div>
+                                        </div>
+                                        <div class="text-center p-3 bg-green-50 rounded-lg">
+                                            <div class="text-2xl font-bold text-green-600">${statistics.statistics?.totalOutgoing || 0}</div>
+                                            <div class="text-sm text-green-700">Outgoing</div>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="text-center p-3 bg-green-50 rounded-lg">
+                                            <div class="text-2xl font-bold text-green-600">${statistics.statistics?.successfulOutgoing || 0}</div>
+                                            <div class="text-sm text-green-700">Successful</div>
+                                        </div>
+                                        <div class="text-center p-3 bg-red-50 rounded-lg">
+                                            <div class="text-2xl font-bold text-red-600">${statistics.statistics?.failedOutgoing || 0}</div>
+                                            <div class="text-sm text-red-700">Failed</div>
+                                        </div>
+                                    </div>
+                                    <div class="text-center p-3 bg-purple-50 rounded-lg">
+                                        <div class="text-lg font-bold text-purple-600">${statistics.statistics?.successRate || 0}%</div>
+                                        <div class="text-sm text-purple-700">Success Rate</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Message Templates -->
+                        <div class="bg-white shadow-lg rounded-xl p-6 mb-6 card-shadow">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                                <i data-lucide="file-text" class="inline h-5 w-5 mr-2"></i>
+                                Message Templates
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="font-medium text-gray-900 mb-2">Welcome Message</h4>
+                                    <p class="text-sm text-gray-600 mb-3">Sent to new users when they first message the bot</p>
+                                    <button onclick="previewTemplate('welcome')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                        Preview Template
+                                    </button>
+                                </div>
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="font-medium text-gray-900 mb-2">Help Message</h4>
+                                    <p class="text-sm text-gray-600 mb-3">Shows available commands and features</p>
+                                    <button onclick="previewTemplate('help')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                        Preview Template
+                                    </button>
+                                </div>
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <h4 class="font-medium text-gray-900 mb-2">Group Instructions</h4>
+                                    <p class="text-sm text-gray-600 mb-3">Guidance for creating and joining groups</p>
+                                    <button onclick="previewTemplate('group')" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                        Preview Template
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Messages -->
+                        <div class="bg-white shadow-lg rounded-xl overflow-hidden card-shadow">
+                            <div class="px-6 py-4 border-b border-gray-200">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-gray-900">Recent Messages</h3>
+                                        <p class="text-sm text-gray-500">Latest incoming and outgoing WhatsApp messages</p>
+                                    </div>
+                                    <div class="text-sm text-gray-500">
+                                        Showing ${messages.messages?.length || 0} of ${messages.total || 0} messages
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone Number</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        ${messages.messages && messages.messages.length > 0 ? messages.messages.map(msg => `
+                                            <tr class="hover:bg-gray-50 transition duration-200">
+                                                <td class="px-6 py-4">
+                                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                                        msg.type === 'incoming' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                                                    }">
+                                                        ${msg.type === 'incoming' ? '📥 Incoming' : '📤 Outgoing'}
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4 text-sm text-gray-900">${msg.phone_number || 'N/A'}</td>
+                                                <td class="px-6 py-4">
+                                                    <div class="max-w-xs truncate" title="${msg.message || ''}">
+                                                        ${msg.message ? (msg.message.length > 50 ? msg.message.substring(0, 50) + '...' : msg.message) : 'N/A'}
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4">
+                                                    <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                                        msg.status === 'sent' ? 'bg-green-100 text-green-800' : 
+                                                        msg.status === 'failed' ? 'bg-red-100 text-red-800' : 
+                                                        'bg-gray-100 text-gray-800'
+                                                    }">
+                                                        ${msg.status || 'received'}
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4 text-sm text-gray-500">
+                                                    ${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : 'N/A'}
+                                                </td>
+                                            </tr>
+                                        `).join('') : `
+                                            <tr>
+                                                <td colspan="5" class="px-6 py-8 text-center">
+                                                    <div class="text-gray-500">
+                                                        <i data-lucide="message-square" class="h-12 w-12 mx-auto mb-4 text-gray-300"></i>
+                                                        <p class="text-lg font-medium">No messages yet</p>
+                                                        <p class="text-sm">Messages will appear here when users interact with the bot</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        `}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-6">
+                            <h3 class="text-lg font-semibold text-blue-900 mb-4">
+                                <span class="mr-2">⚡</span>
+                                Quick Actions
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <button onclick="showSendMessageModal()" class="text-left p-4 bg-white rounded-lg border border-blue-200 hover:border-blue-300 transition duration-200">
+                                    <div class="flex items-center">
+                                        <span class="h-8 w-8 text-blue-600 mr-3 text-2xl">📤</span>
+                                        <div>
+                                            <div class="font-medium text-blue-900">Send Message</div>
+                                            <div class="text-sm text-blue-700">Send a message to a specific user</div>
+                                        </div>
+                                    </div>
+                                </button>
+                                <button onclick="showBulkMessageModal()" class="text-left p-4 bg-white rounded-lg border border-blue-200 hover:border-blue-300 transition duration-200">
+                                    <div class="flex items-center">
+                                        <span class="h-8 w-8 text-blue-600 mr-3 text-2xl">👥</span>
+                                        <div>
+                                            <div class="font-medium text-blue-900">Bulk Message</div>
+                                            <div class="text-sm text-blue-700">Send message to multiple users</div>
+                                        </div>
+                                    </div>
+                                </button>
+                                <button onclick="testWhatsAppConnection()" class="text-left p-4 bg-white rounded-lg border border-blue-200 hover:border-blue-300 transition duration-200">
+                                    <div class="flex items-center">
+                                        <span class="h-8 w-8 text-blue-600 mr-3 text-2xl">🔗</span>
+                                        <div>
+                                            <div class="font-medium text-blue-900">Test Connection</div>
+                                            <div class="text-sm text-blue-700">Verify bot connectivity</div>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                lucide.createIcons();
+            } catch (error) {
+                console.error('WhatsApp management error:', error);
+                // Show with mock data if API fails
+                document.getElementById('main-content').innerHTML = `
+                    <div class="fade-in">
+                        <div class="text-center py-12">
+                            <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                                <i data-lucide="message-circle" class="h-16 w-16 text-green-500 mx-auto mb-4"></i>
+                                <h2 class="text-2xl font-bold text-gray-900 mb-4">WhatsApp Bot Management</h2>
+                                <p class="text-gray-600 mb-4">WhatsApp bot features are now available with comprehensive management tools.</p>
+                                <div class="space-y-3">
+                                    <button onclick="showWhatsAppManagement()" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                                        Refresh
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+            }
+        }
+
+        // WhatsApp Management Functions
+        async function testWhatsAppConnection() {
+            try {
+                const phoneNumber = prompt('Enter phone number to test (with country code):', '+255738071080');
+                if (!phoneNumber) return;
+
+                showLoading();
+                const response = await api.post('/whatsapp/test-connection', { phoneNumber });
+                showNotification('Test message sent successfully!', 'success');
+                hideLoading();
+            } catch (error) {
+                hideLoading();
+                showNotification('Failed to send test message: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        function showSendMessageModal() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
+            modal.innerHTML = `
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-md shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">Send WhatsApp Message</h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                                <i data-lucide="x" class="h-6 w-6"></i>
+                            </button>
+                        </div>
+                        <form onsubmit="sendWhatsAppMessage(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                                <input type="text" name="phoneNumber" required 
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                       placeholder="+255738071080">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                                <textarea name="message" required rows="4"
+                                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          placeholder="Enter your message here..."></textarea>
+                            </div>
+                            <div class="flex justify-end space-x-3 pt-4">
+                                <button type="button" onclick="this.closest('.fixed').remove()" 
+                                        class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded">
+                                    Cancel
+                                </button>
+                                <button type="submit" 
+                                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center">
+                                    <i data-lucide="send" class="h-4 w-4 mr-2"></i>
+                                    Send Message
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            lucide.createIcons();
+        }
+
+        function showBulkMessageModal() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
+            modal.innerHTML = `
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-lg shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">Send Bulk WhatsApp Message</h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                                <i data-lucide="x" class="h-6 w-6"></i>
+                            </button>
+                        </div>
+                        <form onsubmit="sendBulkWhatsAppMessage(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Phone Numbers (one per line)</label>
+                                <textarea name="phoneNumbers" required rows="4"
+                                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          placeholder="+255738071080&#10;+255738071081&#10;+255738071082"></textarea>
+                                <p class="text-xs text-gray-500 mt-1">Enter one phone number per line with country code</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                                <textarea name="message" required rows="4"
+                                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          placeholder="Enter your message here..."></textarea>
+                            </div>
+                            <div class="flex justify-end space-x-3 pt-4">
+                                <button type="button" onclick="this.closest('.fixed').remove()" 
+                                        class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded">
+                                    Cancel
+                                </button>
+                                <button type="submit" 
+                                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded flex items-center">
+                                    <i data-lucide="send" class="h-4 w-4 mr-2"></i>
+                                    Send Bulk Message
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            lucide.createIcons();
+        }
+
+        async function sendWhatsAppMessage(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const messageData = {
+                phoneNumber: formData.get('phoneNumber'),
+                message: formData.get('message')
+            };
+
+            try {
+                showLoading();
+                await api.post('/whatsapp/send-notification', messageData);
+                showNotification('Message sent successfully!', 'success');
+                document.querySelector('.fixed').remove();
+                showWhatsAppManagement();
+            } catch (error) {
+                hideLoading();
+                showNotification('Failed to send message: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        async function sendBulkWhatsAppMessage(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const phoneNumbers = formData.get('phoneNumbers').split('\n').map(p => p.trim()).filter(p => p);
+            const message = formData.get('message');
+
+            if (phoneNumbers.length === 0) {
+                showNotification('Please enter at least one phone number', 'error');
+                return;
+            }
+
+            try {
+                showLoading();
+                await api.post('/whatsapp/send-bulk-notification', { phoneNumbers, message });
+                showNotification(`Bulk message sent to ${phoneNumbers.length} recipients!`, 'success');
+                document.querySelector('.fixed').remove();
+                showWhatsAppManagement();
+            } catch (error) {
+                hideLoading();
+                showNotification('Failed to send bulk message: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        function previewTemplate(templateType) {
+            let message = '';
+            let title = '';
+
+            switch(templateType) {
+                case 'welcome':
+                    title = 'Welcome Message Template';
+                    message = `🎉 Karibu kwenye Kijumbe Rotational Savings, Mpendwa!
+
+Unaweza:
+1️⃣ Kuunda kikundi - andika "UNDA"
+2️⃣ Kujiunga na kikundi - andika "JIUNGA"
+3️⃣ Kuona msaada - andika "MSAADA"
+4️⃣ Kuona hali yako - andika "STATUS"
+5️⃣ Kuona vikundi vyako - andika "VIKUNDI"
+
+Kwa msaada zaidi, andika "HELP" au "MSAADA"`;
+                    break;
+                case 'help':
+                    title = 'Help Message Template';
+                    message = `📚 Msaada wa Kijumbe:
+
+🔹 Status - Kuona hali yako
+🔹 Vikundi - Kuona vikundi vyako
+🔹 Toa [amount] - Kutoa mchango
+🔹 Msaada - Kuona msaada huu
+🔹 Unda - Kuunda kikundi (Kiongozi tu)
+🔹 Jiunga - Kujiunga na kikundi
+
+Kwa msaada zaidi, wasiliana na admin.`;
+                    break;
+                case 'group':
+                    title = 'Group Instructions Template';
+                    message = `🏗️ Kuunda Kikundi:
+
+1️⃣ Nenda kwenye tovuti yetu
+2️⃣ Jisajili kama Kiongozi
+3️⃣ Unda kikundi chako
+4️⃣ Pata Group ID na Bot Phone
+
+Baada ya kuunda, utapata Group ID na unaweza kuanza kukaribisha wanachama.`;
+                    break;
+            }
+
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
+            modal.innerHTML = `
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">${title}</h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                                <i data-lucide="x" class="h-6 w-6"></i>
+                            </button>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <pre class="whitespace-pre-wrap text-sm text-gray-800 font-mono">${message}</pre>
+                        </div>
+                        <div class="mt-4 flex justify-end">
+                            <button onclick="this.closest('.fixed').remove()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        async function updateWebhookUrl() {
+            const newUrl = prompt('Enter new webhook URL:', 'https://your-domain.com/backend/whatsapp/webhook');
+            if (!newUrl) return;
+
+            try {
+                showLoading();
+                await api.put('/whatsapp/webhook-url', { webhookUrl: newUrl });
+                showNotification('Webhook URL updated successfully!', 'success');
+                showWhatsAppManagement();
+            } catch (error) {
+                hideLoading();
+                showNotification('Failed to update webhook URL: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        // Appwrite Management placeholder
+        async function showAppwriteManagement() {
+            document.getElementById('main-content').innerHTML = `
+                <div class="fade-in">
+                    <div class="text-center py-12">
+                        <div class="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+                            <i data-lucide="database" class="h-16 w-16 text-purple-500 mx-auto mb-4"></i>
+                            <h2 class="text-2xl font-bold text-gray-900 mb-4">Appwrite Management</h2>
+                            <p class="text-gray-600 mb-4">Database management features coming soon...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        // Activity log placeholder
+        function showActivityLog() {
+            showNotification('Activity log feature will be implemented', 'info');
+        }
+
+        // Clear message queue
+        async function clearMessageQueue() {
+            if (!confirm('Are you sure you want to clear the message queue? This will remove all pending messages.')) {
+                return;
+            }
+
+            try {
+                showLoading();
+                const response = await api.post('/whatsapp/clear-queue');
+                showNotification('Queue cleared successfully! ' + response.data.clearedCount + ' messages removed.', 'success');
+                hideLoading();
+                showWhatsAppManagement(); // Refresh the page
+            } catch (error) {
+                hideLoading();
+                showNotification('Failed to clear queue: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        // Show modal function
+        function showModal(title, content) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50';
+            modal.innerHTML = `
+                <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-medium text-gray-900">${title}</h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                                <i data-lucide="x" class="h-6 w-6"></i>
+                            </button>
+                        </div>
+                        <div class="max-h-96 overflow-y-auto">
+                            ${content}
+                        </div>
+                        <div class="mt-4 flex justify-end">
+                            <button onclick="this.closest('.fixed').remove()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            lucide.createIcons();
+        }
+
+        // Get instance information
+        async function getInstanceInfo() {
+            try {
+                showLoading();
+                const response = await api.get('/whatsapp/instance-info');
+                hideLoading();
+                
+                // Show instance info in a modal
+                showModal('Instance Information', `
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-medium text-gray-700 mb-2">Status</h4>
+                            <pre class="bg-gray-50 p-3 rounded text-sm overflow-x-auto">${JSON.stringify(response.data.status, null, 2)}</pre>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-700 mb-2">Settings</h4>
+                            <pre class="bg-gray-50 p-3 rounded text-sm overflow-x-auto">${JSON.stringify(response.data.settings, null, 2)}</pre>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-700 mb-2">Configuration</h4>
+                            <pre class="bg-gray-50 p-3 rounded text-sm overflow-x-auto">${JSON.stringify(response.data.config, null, 2)}</pre>
+                        </div>
+                    </div>
+                `);
+            } catch (error) {
+                hideLoading();
+                showNotification('Failed to get instance info: ' + (error.response?.data?.error || error.message), 'error');
+            }
+        }
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 DOM loaded, checking authentication...');
+            console.log('🔑 Stored token:', authToken ? 'Yes' : 'No');
+            console.log('🌐 API Base:', API_BASE);
+            
+            // Initialize Lucide icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+                console.log('✅ Lucide icons initialized');
+            } else {
+                console.warn('⚠️ Lucide not loaded, retrying in 1 second...');
+                setTimeout(() => {
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                        console.log('✅ Lucide icons initialized on retry');
+                    } else {
+                        console.error('❌ Failed to load Lucide icons');
+                    }
+                }, 1000);
+            }
+            
+            if (authToken) {
+                console.log('🔍 Verifying existing token...');
+                // Verify token and initialize app
+                fetch(`${API_BASE}/backend/auth/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Invalid token');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('✅ Token verified:', data);
+                    if (data.success && data.data && data.data.user) {
+                        currentUser = data.data.user;
+                        console.log('👤 User profile loaded:', currentUser.email);
+                        initializeApp();
+                    } else {
+                        throw new Error('Invalid user data');
+                    }
+                })
+                .catch(error => {
+                    console.log('❌ Token verification failed:', error);
+                    localStorage.removeItem('adminToken');
+                    localStorage.removeItem('token');
+                    authToken = null;
+                    currentUser = null;
+                    showLogin();
+                });
+            } else {
+                console.log('📝 No token found, showing login form');
+                showLogin();
+            }
+        });
+    </script>
+</body>
+</html>
