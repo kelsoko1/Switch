@@ -646,28 +646,64 @@ class KijumbeWhatsAppBot {
   // Message sending
   async sendMessage(phoneNumber, message) {
     try {
+      // Normalize phone number to full international format
+      const normalizedNumber = this.normalizePhoneNumber(phoneNumber);
+      
       // Only use test mode for actual test environment
       if (process.env.NODE_ENV === 'test') {
-        console.log(`📱 [TEST MODE] Would send to ${phoneNumber}:`);
+        console.log(`📱 [TEST MODE] Would send to ${normalizedNumber}:`);
         console.log(`   Message: ${message}`);
         return { success: true, test: true };
       }
       
+      console.log(`📤 Sending message to ${normalizedNumber}...`);
+      
       const response = await axios.post(
         `${this.config.baseUrl}/waInstance${this.config.instanceId}/SendMessage/${this.config.apiToken}`,
         {
-          chatId: `${phoneNumber}@c.us`,
+          chatId: `${normalizedNumber}@c.us`,
           message: message
         }
       );
       
-      console.log(`✅ Message sent to ${phoneNumber}: ${message.substring(0, 50)}...`);
+      console.log(`✅ Message sent to ${normalizedNumber}: ${message.substring(0, 50)}...`);
       return response.data;
       
     } catch (error) {
       console.error(`❌ Send message error to ${phoneNumber}:`, error.message);
+      
+      // Detailed error logging
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+      }
+      
+      // Specific error handling
+      if (error.response?.status === 466) {
+        console.warn('⚠️ Monthly quota or number restrictions detected');
+        // Optionally implement message queuing or fallback mechanism
+      }
+      
       throw error;
     }
+  }
+
+  // New method to normalize phone numbers
+  normalizePhoneNumber(phoneNumber) {
+    // Remove any non-digit characters
+    let cleaned = phoneNumber.replace(/\D/g, '');
+    
+    // If number starts with 0, remove it
+    if (cleaned.startsWith('0')) {
+      cleaned = cleaned.slice(1);
+    }
+    
+    // If number doesn't start with country code, prepend 255
+    if (!cleaned.startsWith('255')) {
+      cleaned = '255' + cleaned;
+    }
+    
+    return cleaned;
   }
 
   // Get instance status

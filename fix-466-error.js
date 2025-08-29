@@ -9,6 +9,12 @@ async function fix466Error() {
     const apiToken = process.env.GREENAPI_API_TOKEN_INSTANCE;
     const baseUrl = 'https://7105.api.greenapi.com';
     
+    if (!instanceId || !apiToken) {
+      console.error('❌ CRITICAL: Missing Green API credentials in .env file!');
+      console.error('   Please check GREENAPI_ID_INSTANCE and GREENAPI_API_TOKEN_INSTANCE');
+      return;
+    }
+    
     console.log('📊 Current Status:');
     console.log('   Instance ID:', instanceId);
     console.log('   API Token:', apiToken ? `${apiToken.substring(0, 10)}...` : 'NOT SET');
@@ -17,7 +23,8 @@ async function fix466Error() {
     console.log('\n📱 Step 1: Checking instance status and restrictions...');
     try {
       const statusResponse = await axios.get(
-        `${baseUrl}/waInstance${instanceId}/getStateInstance/${apiToken}`
+        `${baseUrl}/waInstance${instanceId}/getStateInstance/${apiToken}`,
+        { timeout: 10000 }
       );
       console.log('✅ Instance Status:', statusResponse.data.stateInstance);
       
@@ -30,7 +37,8 @@ async function fix466Error() {
       }
       
     } catch (error) {
-      console.log('❌ Cannot check instance status:', error.response?.status, error.response?.data);
+      console.error('❌ Cannot check instance status:', error.message);
+      console.error('Detailed error:', JSON.stringify(error.response?.data || {}, null, 2));
       return;
     }
     
@@ -38,12 +46,14 @@ async function fix466Error() {
     console.log('\n💳 Step 2: Checking account status...');
     try {
       const accountResponse = await axios.get(
-        `${baseUrl}/waInstance${instanceId}/getAccountState/${apiToken}`
+        `${baseUrl}/waInstance${instanceId}/getAccountState/${apiToken}`,
+        { timeout: 10000 }
       );
       console.log('✅ Account Status:', JSON.stringify(accountResponse.data, null, 2));
       
     } catch (error) {
-      console.log('❌ Cannot get account status:', error.response?.status, error.response?.data);
+      console.error('❌ Cannot get account status:', error.message);
+      console.error('Detailed error:', JSON.stringify(error.response?.data || {}, null, 2));
     }
     
     // Step 3: Test with different phone number formats
@@ -56,6 +66,8 @@ async function fix466Error() {
       '748002591'          // Short format
     ];
     
+    let successfulNumber = null;
+    
     for (const testNum of testNumbers) {
       console.log(`\n📱 Testing: ${testNum}`);
       
@@ -65,59 +77,58 @@ async function fix466Error() {
           {
             chatId: `${testNum}@c.us`,
             message: `🧪 Test message - ${new Date().toLocaleTimeString()}`
-          }
+          },
+          { timeout: 10000 }
         );
         
         if (sendResponse.data.idMessage) {
           console.log('✅ SUCCESS! Message ID:', sendResponse.data.idMessage);
           console.log('💡 This number format works!');
+          successfulNumber = testNum;
           break;
         }
         
       } catch (error) {
-        if (error.response?.status === 466) {
-          console.log('❌ 466 Error: Quota exceeded or number restricted');
-        } else if (error.response?.status === 400) {
-          console.log('❌ 400 Error: Bad request format');
-        } else {
-          console.log('❌ Error:', error.response?.status, error.response?.data);
+        console.error('❌ Send message error:', error.message);
+        
+        if (error.response) {
+          console.error('Response status:', error.response.status);
+          console.error('Response data:', JSON.stringify(error.response.data, null, 2));
         }
       }
     }
     
-    // Step 4: Check for quota and restrictions
-    console.log('\n📊 Step 4: Checking for quota and restrictions...');
-    console.log('💡 466 Error usually means:');
+    if (!successfulNumber) {
+      console.log('\n❌ FAILED: Could not send message with any number format');
+    }
+    
+    // Step 4: Detailed error analysis
+    console.log('\n🔍 Detailed Error Analysis:');
+    console.log('💡 Common 466 Error Causes:');
     console.log('   • Monthly quota exceeded');
     console.log('   • Number not in allowed list');
     console.log('   • Instance has restrictions');
     console.log('   • Rate limiting active');
     
-    // Step 5: Provide solutions
-    console.log('\n🔧 Step 5: Solutions to try...');
-    console.log('\n1️⃣ Check Green API Dashboard:');
+    // Step 5: Recommendations
+    console.log('\n🔧 Recommended Actions:');
+    console.log('1. Check Green API Dashboard:');
     console.log('   • Go to https://console.green-api.com/');
-    console.log('   • Check your instance status');
-    console.log('   • Verify monthly quota');
-    console.log('   • Check allowed numbers');
+    console.log('   • Verify instance status');
+    console.log('   • Check monthly quota');
+    console.log('   • Review allowed numbers');
     
-    console.log('\n2️⃣ Try Different Numbers:');
-    console.log('   • Test with your own number');
-    console.log('   • Test with numbers in allowed list');
-    console.log('   • Check if demo numbers work');
+    console.log('\n2. Verify Credentials:');
+    console.log('   • Confirm Instance ID is correct');
+    console.log('   • Verify API Token is valid');
     
-    console.log('\n3️⃣ Check Instance Settings:');
-    console.log('   • Verify instance authorization');
-    console.log('   • Check for any restrictions');
-    console.log('   • Look for rate limiting');
-    
-    console.log('\n4️⃣ Contact Green API Support:');
-    console.log('   • If quota is exceeded');
-    console.log('   • If numbers are restricted');
-    console.log('   • For account limitations');
+    console.log('\n3. Contact Support:');
+    console.log('   • If issues persist');
+    console.log('   • Explain 466 error details');
     
   } catch (error) {
-    console.error('❌ Fix failed:', error.message);
+    console.error('❌ CRITICAL ERROR:', error.message);
+    console.error('Full error details:', error);
   }
 }
 
