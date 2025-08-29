@@ -219,8 +219,8 @@ const handleIncomingMessage = async (webhookBody) => {
   try {
     const { chatId, senderData, messageData } = webhookBody;
     const phoneNumber = senderData.sender.replace('@c.us', '');
-    const message = messageData.textMessageData?.textMessage || '';
-    const messageType = messageData.typeMessage || 'text';
+    const message = safeGet(messageData, 'textMessageData.textMessage', '');
+    const messageType = safeGet(messageData, 'typeMessage', 'text');
 
     console.log(`📱 Incoming ${messageType} message from ${phoneNumber}: ${message}`);
 

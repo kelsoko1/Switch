@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:2.9
+    container_name: appwrite-traefik
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.http.address=:8080
+      - --entrypoints.https.address=:8443
+    ports:
+      - 8080:8080
+      - 8443:8443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - appwrite_network
+
+  appwrite:
+    image: appwrite/appwrite:1.4.0
+    container_name: appwrite
+    restart: unless-stopped
+    networks:
+      - appwrite_network
+    volumes:
+      - appwrite-uploads:/storage/uploads
+      - appwrite-certificates:/storage/certificates
+      - appwrite-config:/storage/config
+    depends_on:
+      - mariadb
+      - redis
+    environment:
+      - _APP_ENV=production
+      - _APP_LOCALE=en
+      - _APP_CONSOLE_WHITELIST_ROOT=enabled
+      - _APP_SYSTEM_EMAIL_NAME=Appwrite
+      - _APP_SYSTEM_EMAIL_ADDRESS=team@appwrite.io
+      - _APP_DOMAIN=localhost
+      - _APP_DOMAIN_TARGET=localhost
+      - _APP_REDIS_HOST=redis
+      - _APP_REDIS_PORT=6379
+      - _APP_DB_HOST=mariadb
+      - _APP_DB_PORT=3306
+      - _APP_DB_SCHEMA=appwrite
+      - _APP_DB_USER=appwrite
+      - _APP_DB_PASS=password
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.appwrite.entrypoints=http
+      - traefik.http.routers.appwrite.rule=Host(`localhost`)
+      - traefik.port=8080
+
+  mariadb:
+    image: mariadb:10.7
+    container_name: appwrite-mariadb
+    restart: unless-stopped
+    networks:
+      - appwrite_network
+    volumes:
+      - appwrite-db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=appwrite
+      - MYSQL_USER=appwrite
+      - MYSQL_PASSWORD=password
+    ports:
+      - 13306:3306
+
+  redis:
+    image: redis:alpine
+    container_name: appwrite-redis
+    restart: unless-stopped
+    networks:
+      - appwrite_network
+    volumes:
+      - appwrite-redis:/data
+    ports:
+      - 16379:6379
+
+volumes:
+  appwrite-uploads:
+  appwrite-certificates:
+  appwrite-config:
+  appwrite-db:
+  appwrite-redis:
+
+networks:
+  appwrite_network:
+    name: appwrite_network
+    driver: bridge
