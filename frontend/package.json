@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:ci": "CI=true VITE_HEADLESS=true vite build --mode production",
+    "build:debug": "VITE_HEADLESS=true vite build --debug",
+    "build:xvfb": "xvfb-run npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "prepare": "cd .. && husky install"
