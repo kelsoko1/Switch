@@ -1,84 +1,103 @@
-// Simple API service for Kijumbe Superadmin System
-const API_BASE_URL = 'http://localhost:3000/backend';
+import axios from 'axios'
 
-class ApiService {
-  constructor() {
-    this.baseURL = API_BASE_URL;
-  }
+// Use the backend API endpoint
+export const api = axios.create({
+  baseURL: '/backend',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  withCredentials: true
+})
 
-  // Make HTTP request
-  async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
-    
-    const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
-      ...options
-    };
-
-    // Add auth token if available
-    const token = localStorage.getItem('token');
+// Request interceptor to add auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token')
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`
     }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
 
-    try {
-      console.log(`🚀 API Request: ${options.method || 'GET'} ${url}`);
-      
-      const response = await fetch(url, config);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP ${response.status}`);
+// Response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Only redirect to login for 401 errors, not network errors or other issues
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      // Only redirect if we're not already on the login page to prevent loops
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
       }
-      
-      console.log(`✅ API Response: ${response.status} ${endpoint}`);
-      return data;
-    } catch (error) {
-      console.error(`❌ API Error: ${endpoint}`, error);
-      throw error;
     }
+    return Promise.reject(error)
   }
+)
 
-  // Login
-  async login(email, password) {
-    const response = await this.request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password })
-    });
-    
-    // Extract data from the response
-    if (response.success && response.data) {
-      return {
-        success: true,
-        user: response.data.user,
-        token: response.data.token
-      };
-    }
-    
-    return response;
-  }
-
-  // Logout
-  async logout() {
-    return this.request('/auth/logout', {
-      method: 'POST'
-    });
-  }
-
-  // Get profile
-  async getProfile() {
-    return this.request('/auth/profile');
-  }
-
-  // Health check
-  async healthCheck() {
-    return this.request('/auth/health');
-  }
+// Auth API
+export const authAPI = {
+  login: (email, password) => api.post('/auth/login', { email, password }),
+  register: (userData) => api.post('/auth/register', userData),
+  getProfile: () => api.get('/auth/profile'),
+  getUsers: () => api.get('/auth/users'),
 }
 
-// Create and export instance
-const api = new ApiService();
-export default api;
+// Groups API
+export const groupsAPI = {
+  create: (groupData) => api.post('/groups/create', groupData),
+  getMyGroups: () => api.get('/groups/my-groups'),
+  getAll: () => api.get('/groups'),
+  getById: (id) => api.get(`/groups/${id}`),
+}
+
+// WhatsApp API
+export const whatsappAPI = {
+  getStatus: () => api.get('/whatsapp/status'),
+  sendMessage: (phoneNumber, message) => api.post('/whatsapp/send', { phoneNumber, message }),
+  sendGroupMessage: (groupId, message) => api.post('/whatsapp/send-group', { groupId, message }),
+  getQueue: () => api.get('/whatsapp/queue'),
+}
+
+// Admin API
+export const adminAPI = {
+  getStatistics: () => api.get('/admin/statistics'),
+  getRecentActivity: () => api.get('/admin/recent-activity'),
+  getUsers: (page = 1, limit = 10) => api.get(`/admin/users?page=${page}&limit=${limit}`),
+  getGroups: (page = 1, limit = 10) => api.get(`/admin/groups?page=${page}&limit=${limit}`),
+  updateUserStatus: (userId, status) => api.patch(`/admin/users/${userId}/status`, { status }),
+  updateGroupStatus: (groupId, status) => api.patch(`/admin/groups/${groupId}/status`, { status }),
+}
+
+// Wallet API
+export const walletAPI = {
+  getWallet: () => api.get('/wallet'),
+  setPin: (pin, confirmPin) => api.post('/wallet/pin', { pin, confirmPin }),
+  verifyPin: (pin) => api.post('/wallet/pin/verify', { pin }),
+  getPaymentMethods: () => api.get('/wallet/payment-methods'),
+  deposit: (amount, paymentMethod, paymentData) => api.post('/wallet/deposit', { amount, paymentMethod, paymentData }),
+  withdraw: (amount, pin, withdrawalData) => api.post('/wallet/withdraw', { amount, pin, withdrawalData }),
+  getTransactions: (page = 1, limit = 20, type = null) => api.get(`/wallet/transactions?page=${page}&limit=${limit}${type ? `&type=${type}` : ''}`),
+  verifyPayment: (orderId) => api.post('/wallet/verify-payment', { orderId }),
+  getStats: () => api.get('/wallet/stats'),
+  
+  // Savings Goals API
+  getSavingsGoals: () => api.get('/wallet/savings-goals'),
+  createSavingsGoal: (goalData) => api.post('/wallet/savings-goals', goalData),
+  updateSavingsGoal: (goalId, goalData) => api.put(`/wallet/savings-goals/${goalId}`, goalData),
+  deleteSavingsGoal: (goalId) => api.delete(`/wallet/savings-goals/${goalId}`),
+  
+  // Contributions API
+  getContributions: () => api.get('/wallet/contributions'),
+  makeContribution: (groupId, amount) => api.post('/wallet/contributions', { group_id: groupId, amount }),
+  
+  // Group Payments API (Kiongozi only)
+  getGroupPayments: () => api.get('/wallet/group-payments'),
+  processGroupPayment: (paymentData) => api.post('/wallet/group-payments', paymentData),
+}
+
+export default api

@@ -1,226 +1,245 @@
-import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, Shield, Calendar, Edit, Save, X } from 'lucide-react';
-import useAuthStore from '../stores/authStore';
-import api from '../services/api';
+import { useState, useEffect } from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
+import { User, Mail, Shield, Calendar, Edit3, Save, X } from 'lucide-react'
 
 const Profile = () => {
-  const { user, updateProfile } = useAuthStore();
-  const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const { user, updateUser } = useAuth()
+  const { success, error } = useToast()
+  const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
-    name: '',
-    phone: ''
-  });
+    name: user?.name || '',
+    email: user?.email || '',
+  })
 
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        name: user.name || '',
-        phone: user.phone || ''
-      });
-    }
-  }, [user]);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      await updateProfile(formData);
-      setIsEditing(false);
-    } catch (error) {
-      setError('Failed to update profile');
-      console.error('Error updating profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const cancelEdit = () => {
+  const handleEdit = () => {
+    setIsEditing(true)
     setFormData({
       name: user?.name || '',
-      phone: user?.phone || ''
-    });
-    setIsEditing(false);
-    setError(null);
-  };
+      email: user?.email || '',
+    })
+  }
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
-      </div>
-    );
+  const handleCancel = () => {
+    setIsEditing(false)
+    setFormData({
+      name: user?.name || '',
+      email: user?.email || '',
+    })
+  }
+
+  const handleSave = async () => {
+    try {
+      // Here you would typically make an API call to update the user
+      // For now, we'll just update the local state
+      updateUser({ ...user, ...formData })
+      success('Profile updated successfully!')
+      setIsEditing(false)
+    } catch (err) {
+      error('Failed to update profile')
+    }
+  }
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    })
+  }
+
+  const getRoleBadgeColor = (role) => {
+    switch (role) {
+      case 'superadmin':
+        return 'bg-red-100 text-red-800'
+      case 'admin':
+        return 'bg-purple-100 text-purple-800'
+      case 'kiongozi':
+        return 'bg-blue-100 text-blue-800'
+      case 'member':
+        return 'bg-green-100 text-green-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
-        <p className="text-gray-600">Manage your account information and settings</p>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <p className="text-red-800">{error}</p>
-        </div>
-      )}
-
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>
-            {!isEditing && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="p-6">
-          {isEditing ? (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Cancel
-                </button>
-              </div>
-            </form>
+    <div className="max-w-2xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="card">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
+          {!isEditing ? (
+            <button
+              onClick={handleEdit}
+              className="btn btn-outline flex items-center space-x-2"
+            >
+              <Edit3 className="h-4 w-4" />
+              <span>Edit Profile</span>
+            </button>
           ) : (
-            <div className="space-y-6">
-              <div className="flex items-center">
-                <User className="w-5 h-5 text-gray-400 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Full Name</p>
-                  <p className="text-gray-900">{user.name}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center">
-                <Mail className="w-5 h-5 text-gray-400 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Email Address</p>
-                  <p className="text-gray-900">{user.email}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center">
-                <Phone className="w-5 h-5 text-gray-400 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Phone Number</p>
-                  <p className="text-gray-900">{user.phone}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center">
-                <Shield className="w-5 h-5 text-gray-400 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Role</p>
-                  <p className="text-gray-900 capitalize">{user.role}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center">
-                <Calendar className="w-5 h-5 text-gray-400 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Member Since</p>
-                  <p className="text-gray-900">
-                    {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
-                  </p>
-                </div>
-              </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleCancel}
+                className="btn btn-secondary flex items-center space-x-2"
+              >
+                <X className="h-4 w-4" />
+                <span>Cancel</span>
+              </button>
+              <button
+                onClick={handleSave}
+                className="btn btn-primary flex items-center space-x-2"
+              >
+                <Save className="h-4 w-4" />
+                <span>Save</span>
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Account Security */}
-      <div className="bg-white rounded-lg border border-gray-200 mt-6">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Account Security</h2>
-        </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-gray-900">Password</h3>
-                <p className="text-sm text-gray-600">Last changed: Never</p>
-              </div>
-              <button className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                Change Password
-              </button>
+      {/* Profile Information */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-gray-900 mb-6">Personal Information</h2>
+        
+        <div className="space-y-6">
+          {/* Avatar */}
+          <div className="flex items-center space-x-4">
+            <div className="h-20 w-20 rounded-full bg-primary-600 flex items-center justify-center">
+              <span className="text-2xl font-bold text-white">
+                {user?.name?.charAt(0)?.toUpperCase()}
+              </span>
             </div>
-            
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium text-gray-900">Two-Factor Authentication</h3>
-                <p className="text-sm text-gray-600">Add an extra layer of security</p>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">{user?.name}</h3>
+              <div className="flex items-center space-x-2 mt-1">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(user?.role)}`}>
+                  {user?.role?.charAt(0)?.toUpperCase() + user?.role?.slice(1)}
+                </span>
+                {user?.isSuperAdmin && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    🔥 Super Admin
+                  </span>
+                )}
               </div>
-              <button className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                Enable 2FA
-              </button>
+            </div>
+          </div>
+
+          {/* Form Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="label">
+                <User className="h-4 w-4 inline mr-2" />
+                Full Name
+              </label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="input"
+                  placeholder="Enter your full name"
+                />
+              ) : (
+                <p className="text-gray-900 py-2">{user?.name}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="label">
+                <Mail className="h-4 w-4 inline mr-2" />
+                Email Address
+              </label>
+              {isEditing ? (
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="input"
+                  placeholder="Enter your email"
+                />
+              ) : (
+                <p className="text-gray-900 py-2">{user?.email}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="label">
+                <Shield className="h-4 w-4 inline mr-2" />
+                Role
+              </label>
+              <p className="text-gray-900 py-2">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(user?.role)}`}>
+                  {user?.role?.charAt(0)?.toUpperCase() + user?.role?.slice(1)}
+                </span>
+              </p>
+            </div>
+
+            <div>
+              <label className="label">
+                <Calendar className="h-4 w-4 inline mr-2" />
+                Member Since
+              </label>
+              <p className="text-gray-900 py-2">
+                {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+              </p>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-};
 
-export default Profile;
+      {/* Account Status */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Status</h2>
+        
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Account Status</span>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              user?.status === 'active' 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {user?.status?.charAt(0)?.toUpperCase() + user?.status?.slice(1)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Last Login</span>
+            <span className="text-sm text-gray-900">
+              {user?.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Super Admin</span>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              user?.isSuperAdmin 
+                ? 'bg-red-100 text-red-800' 
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {user?.isSuperAdmin ? 'Yes' : 'No'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Security */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Security</h2>
+        
+        <div className="space-y-4">
+          <button className="btn btn-outline w-full">
+            Change Password
+          </button>
+          <button className="btn btn-outline w-full">
+            Two-Factor Authentication
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Profile

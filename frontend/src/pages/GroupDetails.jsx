@@ -1,203 +1,252 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Users, Calendar, DollarSign, User, Phone, Mail, MapPin, ArrowLeft } from 'lucide-react';
-import useAuthStore from '../stores/authStore';
-import api from '../services/api';
+import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
+import { groupsAPI } from '../services/api'
+import { Users, DollarSign, Calendar, User, Phone, Mail, Crown } from 'lucide-react'
 
 const GroupDetails = () => {
-  const { groupId } = useParams();
-  const { user } = useAuthStore();
-  const [group, setGroup] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { id } = useParams()
+  const { user } = useAuth()
+  const { error } = useToast()
+  const [group, setGroup] = useState(null)
+  const [members, setMembers] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchGroupDetails();
-  }, [groupId]);
+    fetchGroupDetails()
+  }, [id])
 
   const fetchGroupDetails = async () => {
     try {
-      setLoading(true);
-      const [groupResponse, membersResponse] = await Promise.all([
-        api.get(`/groups/${groupId}`),
-        api.get(`/members/group/${groupId}`)
-      ]);
-      
-      setGroup(groupResponse.data.group);
-      setMembers(membersResponse.data.members || []);
-    } catch (error) {
-      setError('Failed to fetch group details');
-      console.error('Error fetching group details:', error);
+      const response = await groupsAPI.getById(id)
+      setGroup(response.data.data.group)
+      setMembers(response.data.data.members)
+    } catch (err) {
+      error('Failed to fetch group details')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'closed': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getRoleColor = (role) => {
-    switch (role) {
-      case 'kiongozi': return 'bg-purple-100 text-purple-800';
-      case 'member': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
-    );
+    )
   }
 
-  if (error || !group) {
+  if (!group) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error || 'Group not found'}</p>
-          <Link
-            to="/groups"
-            className="mt-2 inline-flex items-center px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Groups
-          </Link>
-        </div>
+      <div className="text-center py-12">
+        <h2 className="text-2xl font-bold text-gray-900">Group not found</h2>
+        <p className="text-gray-600 mt-2">The group you're looking for doesn't exist.</p>
       </div>
-    );
+    )
   }
+
+  const isKiongozi = group.kiongozi_id === user?.id
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="mb-6">
-        <Link
-          to="/groups"
-          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Back to Groups
-        </Link>
-        
-        <div className="flex justify-between items-start">
+      <div className="card">
+        <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{group.name}</h1>
-            <p className="text-gray-600 mt-2">Group ID: {group.$id}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
+            <p className="text-gray-600 mt-1">
+              {isKiongozi ? 'You are the leader of this group' : 'You are a member of this group'}
+            </p>
           </div>
-          <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(group.status)}`}>
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+            group.status === 'active' 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-gray-100 text-gray-800'
+          }`}>
             {group.status}
           </span>
         </div>
       </div>
 
       {/* Group Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="card">
           <div className="flex items-center">
-            <Users className="w-8 h-8 text-primary-600 mr-3" />
-            <div>
+            <div className="p-3 rounded-lg bg-blue-500">
+              <Users className="h-6 w-6 text-white" />
+            </div>
+            <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Members</p>
-              <p className="text-2xl font-bold text-gray-900">{members.length} / {group.max_members}</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {members.length}/{group.max_members}
+              </p>
             </div>
           </div>
         </div>
-        
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
+
+        <div className="card">
           <div className="flex items-center">
-            <Calendar className="w-8 h-8 text-primary-600 mr-3" />
-            <div>
-              <p className="text-sm font-medium text-gray-600">Rotation</p>
-              <p className="text-2xl font-bold text-gray-900">{group.rotation_duration} months</p>
+            <div className="p-3 rounded-lg bg-green-500">
+              <DollarSign className="h-6 w-6 text-white" />
             </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex items-center">
-            <DollarSign className="w-8 h-8 text-primary-600 mr-3" />
-            <div>
+            <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Contribution</p>
-              <p className="text-2xl font-bold text-gray-900">TZS {group.contribution_amount?.toLocaleString() || 0}</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {group.contribution_amount?.toLocaleString()} TZS
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center">
+            <div className="p-3 rounded-lg bg-purple-500">
+              <Calendar className="h-6 w-6 text-white" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Duration</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {group.rotation_duration} months
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Group Details */}
-      <div className="bg-white rounded-lg border border-gray-200 mb-8">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Group Information</h2>
+      {/* Group Information */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Group Details */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Group Information</h2>
+          
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <span className="text-sm font-medium text-gray-600">Group Name</span>
+              <span className="text-sm text-gray-900">{group.name}</span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span className="text-sm font-medium text-gray-600">Current Rotation</span>
+              <span className="text-sm text-gray-900">#{group.current_rotation}</span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span className="text-sm font-medium text-gray-600">Created</span>
+              <span className="text-sm text-gray-900">
+                {new Date(group.created_at).toLocaleDateString()}
+              </span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span className="text-sm font-medium text-gray-600">Status</span>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                group.status === 'active' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {group.status}
+              </span>
+            </div>
+          </div>
         </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Created</h3>
-              <p className="text-gray-900">{new Date(group.created_at).toLocaleDateString()}</p>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Current Rotation</h3>
-              <p className="text-gray-900">{group.current_rotation || 0}</p>
-            </div>
+
+        {/* Actions */}
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Actions</h2>
+          
+          <div className="space-y-3">
+            {isKiongozi && (
+              <>
+                <button className="btn btn-primary w-full">
+                  Add Member
+                </button>
+                <button className="btn btn-outline w-full">
+                  Send Message
+                </button>
+                <button className="btn btn-outline w-full">
+                  Edit Group
+                </button>
+              </>
+            )}
+            
+            <button className="btn btn-outline w-full">
+              View Transactions
+            </button>
+            
+            <button className="btn btn-outline w-full">
+              Export Data
+            </button>
           </div>
         </div>
       </div>
 
       {/* Members List */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Group Members</h2>
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Members</h2>
+          <span className="text-sm text-gray-500">
+            {members.length} of {group.max_members} members
+          </span>
         </div>
-        <div className="p-6">
-          {members.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No members yet</p>
-          ) : (
-            <div className="space-y-4">
-              {members.map((member, index) => (
-                <div key={member.$id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center mr-4">
-                      <User className="w-5 h-5 text-primary-600" />
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <h3 className="font-medium text-gray-900">{member.name}</h3>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRoleColor(member.role)}`}>
-                          {member.role}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
-                        <span className="flex items-center">
-                          <Phone className="w-3 h-3 mr-1" />
-                          {member.phone}
-                        </span>
-                        <span className="flex items-center">
-                          <Mail className="w-3 h-3 mr-1" />
-                          {member.email}
-                        </span>
-                      </div>
-                    </div>
+
+        {members.length === 0 ? (
+          <div className="text-center py-8">
+            <Users className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No members yet</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {isKiongozi ? 'Start by adding members to your group.' : 'This group has no members yet.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {members.map((member, index) => (
+              <div key={member.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <div className="h-10 w-10 rounded-full bg-primary-600 flex items-center justify-center">
+                    <span className="text-sm font-medium text-white">
+                      {member.user?.name?.charAt(0)?.toUpperCase()}
+                    </span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">#{member.member_number}</p>
-                    <p className="text-xs text-gray-500">Rotation: {member.rotation_order}</p>
+                  
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-sm font-medium text-gray-900">
+                        {member.user?.name || 'Unknown User'}
+                      </h3>
+                      {member.user_id === group.kiongozi_id && (
+                        <Crown className="h-4 w-4 text-yellow-500" />
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500">{member.user?.email}</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+
+                <div className="flex items-center space-x-4">
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-900">
+                      Member #{member.member_number}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Rotation #{member.rotation_order}
+                    </p>
+                  </div>
+                  
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    member.status === 'active' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {member.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default GroupDetails;
+export default GroupDetails

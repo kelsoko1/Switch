@@ -1,39 +1,40 @@
 {
   "name": "kijumbe-rotational-savings",
-  "version": "1.0.0",
-  "description": "Rotational Savings Platform with WhatsApp Integration",
-  "main": "server.js",
+  "version": "2.0.0",
+  "description": "Clean Rotational Savings Platform with WhatsApp Integration and Appwrite Backend",
+  "main": "src/server.js",
   "scripts": {
-    "preinstall": "npx only-allow pnpm",
-    "install:all": "./setup.sh",
-    "build": "./setup.sh && cd frontend && npm run build",
-    "dev": "node --experimental-modules server.js",
-    "start": "node --experimental-modules server.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "dev:tunnel": "node start-dev-with-ngrok.js",
+    "test": "echo 'No tests specified'",
+    "test:wallet": "node test-wallet.js"
   },
   "keywords": [
     "savings",
     "rotational",
     "whatsapp",
     "fintech",
-    "tanzania"
+    "tanzania",
+    "appwrite",
+    "nodejs"
   ],
   "author": "Kijumbe Team",
   "license": "MIT",
   "dependencies": {
-    "appwrite": "^19.0.0",
-    "axios": "^1.11.0",
+    "appwrite": "^14.0.1",
+    "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "express-validator": "^6.15.0",
+    "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.2"
   },
   "engines": {
     "node": ">=16.0.0",

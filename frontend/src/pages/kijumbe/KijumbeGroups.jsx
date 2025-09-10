@@ -1,201 +1,139 @@
-import React, { useState, useEffect } from 'react';
-import { Building, Search, Eye, Edit, Trash2, Filter, Users, DollarSign } from 'lucide-react';
-import useAuthStore from '../../stores/authStore';
-import api from '../../services/api';
+import { useState, useEffect } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
+import { groupsAPI } from '../../services/api'
+import { BarChart3, Users, DollarSign, Calendar, Eye, Edit, Trash2, Plus } from 'lucide-react'
 
-const AdminGroups = () => {
-  const { user } = useAuthStore();
-  const [groups, setGroups] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+const KijumbeGroups = () => {
+  const { user } = useAuth()
+  const { error } = useToast()
+  const [groups, setGroups] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchGroups();
-  }, []);
+    fetchGroups()
+  }, [])
 
   const fetchGroups = async () => {
     try {
-      setLoading(true);
-      const response = await api.get('/admin/groups');
-      setGroups(response.data.groups || []);
-    } catch (error) {
-      setError('Failed to fetch groups');
-      console.error('Error fetching groups:', error);
+      const response = await groupsAPI.getMyGroups()
+      const myGroups = response.data.data.groups.filter(g => g.role === 'kiongozi')
+      setGroups(myGroups)
+    } catch (err) {
+      error('Failed to fetch groups')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-
-  const filteredGroups = groups.filter(group => {
-    const matchesSearch = group.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || group.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
-          <button 
-            onClick={fetchGroups}
-            className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
+    )
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Group Management</h1>
-        <p className="text-gray-600">Monitor and manage all savings groups on the platform</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="card">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Groups</h1>
+            <p className="text-gray-600">Manage your savings groups as a Kiongozi</p>
+          </div>
+          <button className="btn btn-primary flex items-center space-x-2">
+            <Plus className="h-4 w-4" />
+            <span>Create Group</span>
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search groups by name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
+      {/* Groups Grid */}
+      {groups.length === 0 ? (
+        <div className="card text-center py-12">
+          <BarChart3 className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No groups yet</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Create your first savings group to start managing members and contributions.
+          </p>
+          <div className="mt-6">
+            <button className="btn btn-primary">
+              Create Your First Group
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {groups.map((group) => (
+            <div key={group.id} className="card hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
+                  <p className="text-sm text-gray-500">ID: {group.id}</p>
+                </div>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  group.status === 'active' 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {group.status}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Users className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm text-gray-600">Members</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {group.current_members}/{group.max_members}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <DollarSign className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm text-gray-600">Contribution</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {group.contribution_amount?.toLocaleString()} TZS
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm text-gray-600">Duration</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {group.rotation_duration} months
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between">
+                <button className="btn btn-outline text-sm flex items-center space-x-1">
+                  <Eye className="h-4 w-4" />
+                  <span>View</span>
+                </button>
+                <div className="flex space-x-2">
+                  <button className="text-primary-600 hover:text-primary-900">
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button className="text-red-600 hover:text-red-900">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Filter className="w-5 h-5 text-gray-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="pending">Pending</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
+          ))}
         </div>
-      </div>
-
-      {/* Groups Table */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Groups ({filteredGroups.length})
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Group
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Kiongozi
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Members
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contribution
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredGroups.map((group) => (
-                <tr key={group.$id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <Building className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{group.name}</div>
-                        <div className="text-sm text-gray-500">ID: {group.$id}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {group.kiongozi_name || 'Unknown'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <Users className="w-4 h-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-900">
-                        {group.current_members || 0} / {group.max_members}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <DollarSign className="w-4 h-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-900">
-                        TZS {group.contribution_amount?.toLocaleString() || 0}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      group.status === 'active' ? 'bg-green-100 text-green-800' :
-                      group.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {group.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(group.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-primary-600 hover:text-primary-900">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button className="text-blue-600 hover:text-blue-900">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button className="text-red-600 hover:text-red-900">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
     </div>
-  );
-};
+  )
+}
 
-export default AdminGroups;
+export default KijumbeGroups

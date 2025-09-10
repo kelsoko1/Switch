@@ -1,31 +1,28 @@
 @echo off
-echo 🚀 Building and Starting Kijumbe Platform...
+echo ====================================
+echo Building Frontend and Starting Server
+echo ====================================
+
 echo.
-
-echo 📦 Installing backend dependencies...
-npm install
-
-echo 📦 Installing frontend dependencies...
+echo Building frontend...
 cd frontend
-npm install
+call npm run build
+if %errorlevel% neq 0 (
+    echo Frontend build failed!
+    pause
+    exit /b 1
+)
 
-echo 🔨 Building React frontend...
-npm run build
+echo.
+echo Frontend built successfully!
+echo.
+
 cd ..
-
-echo.
-echo 🎯 Starting combined server on port 3000...
-echo 🌐 Frontend: http://localhost:3000
-echo 🔌 Backend API: http://localhost:3000/backend
-echo 📊 Health Check: http://localhost:3000/health
+echo Starting server...
+echo The website will be available at: http://localhost:3000
+echo The API will be available at: http://localhost:3000/backend
 echo.
 
-echo 🚀 Starting the server...
-npm run dev
+call npm run dev
 
-echo.
-echo ✅ Application started successfully!
-echo 📱 Everything runs on: http://localhost:3000
-echo.
-echo Press any key to exit...
-pause >nul
+pause

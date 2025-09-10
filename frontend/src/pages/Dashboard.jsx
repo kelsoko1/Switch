@@ -1,200 +1,158 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import useAuthStore from '../stores/authStore';
-import { 
-  Users, 
-  CreditCard, 
-  TrendingUp, 
-  ArrowRight,
-  Crown,
-  Shield,
-  Database
-} from 'lucide-react';
+import { useState, useEffect } from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
+import { groupsAPI } from '../services/api'
+import { Users, TrendingUp, DollarSign, Calendar } from 'lucide-react'
 
 const Dashboard = () => {
-  const { user } = useAuthStore();
+  const { user } = useAuth()
+  const { error } = useToast()
+  const [groups, setGroups] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
-  };
+  useEffect(() => {
+    fetchGroups()
+  }, [])
+
+  const fetchGroups = async () => {
+    try {
+      const response = await groupsAPI.getMyGroups()
+      setGroups(response.data.data.groups)
+    } catch (err) {
+      error('Failed to fetch groups')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const stats = [
+    {
+      name: 'Total Groups',
+      value: groups.length,
+      icon: Users,
+      color: 'bg-blue-500'
+    },
+    {
+      name: 'Active Groups',
+      value: groups.filter(g => g.status === 'active').length,
+      icon: TrendingUp,
+      color: 'bg-green-500'
+    },
+    {
+      name: 'Total Contributions',
+      value: groups.reduce((sum, g) => sum + (g.contribution_amount || 0), 0).toLocaleString(),
+      icon: DollarSign,
+      color: 'bg-yellow-500'
+    },
+    {
+      name: 'This Month',
+      value: new Date().toLocaleDateString('en-US', { month: 'long' }),
+      icon: Calendar,
+      color: 'bg-purple-500'
+    }
+  ]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            {getGreeting()}, {user?.name || 'Administrator'}!
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Welcome back, {user?.name}!
         </h1>
-          <p className="mt-2 text-gray-600">
-            Welcome to your Kijumbe Superadmin Dashboard
+        <p className="text-gray-600 mt-2">
+          Here's an overview of your savings groups and activities.
         </p>
       </div>
 
-      {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-2xl font-semibold text-gray-900">0</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <CreditCard className="w-6 h-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Groups</p>
-                <p className="text-2xl font-semibold text-gray-900">0</p>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat) => {
+          const Icon = stat.icon
+          return (
+            <div key={stat.name} className="card">
+              <div className="flex items-center">
+                <div className={`p-3 rounded-lg ${stat.color}`}>
+                  <Icon className="h-6 w-6 text-white" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">{stat.name}</p>
+                  <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
+                </div>
               </div>
             </div>
-          </div>
+          )
+        })}
+      </div>
 
-          <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-purple-600" />
+      {/* Recent Groups */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Your Groups</h2>
+          <button className="btn btn-primary">
+            Create New Group
+          </button>
         </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Transactions</p>
-                <p className="text-2xl font-semibold text-gray-900">0</p>
-            </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <Crown className="w-6 h-6 text-yellow-600" />
-        </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Role</p>
-                <p className="text-2xl font-semibold text-gray-900 capitalize">
-                  {user?.role || 'Superadmin'}
-              </p>
-            </div>
+        
+        {groups.length === 0 ? (
+          <div className="text-center py-8">
+            <Users className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No groups yet</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Get started by creating a new savings group or joining an existing one.
+            </p>
+            <div className="mt-6">
+              <button className="btn btn-primary">
+                Create Group
+              </button>
             </div>
           </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <Link
-            to="/admin/dashboard"
-            className="bg-white rounded-lg shadow p-6 border border-gray-200 hover:shadow-lg transition-shadow"
-          >
-          <div className="flex items-center justify-between">
-            <div>
-                <h3 className="text-lg font-medium text-gray-900">Admin Panel</h3>
-                <p className="text-sm text-gray-600 mt-1">Manage system settings</p>
-              </div>
-              <ArrowRight className="w-5 h-5 text-gray-400" />
-            </div>
-          </Link>
-
-          <Link
-            to="/admin/users"
-            className="bg-white rounded-lg shadow p-6 border border-gray-200 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">User Management</h3>
-                <p className="text-sm text-gray-600 mt-1">Manage system users</p>
-              </div>
-              <ArrowRight className="w-5 h-5 text-gray-400" />
-            </div>
-          </Link>
-
-              <Link
-            to="/admin/groups"
-            className="bg-white rounded-lg shadow p-6 border border-gray-200 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">Group Management</h3>
-                <p className="text-sm text-gray-600 mt-1">Manage savings groups</p>
+        ) : (
+          <div className="space-y-4">
+            {groups.map((group) => (
+              <div key={group.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">{group.name}</h3>
+                    <p className="text-sm text-gray-500">
+                      {group.current_members} of {group.max_members} members
+                    </p>
                   </div>
-              <ArrowRight className="w-5 h-5 text-gray-400" />
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-900">
+                      {group.contribution_amount?.toLocaleString()} TZS
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {group.role === 'kiongozi' ? 'Leader' : 'Member'}
+                    </p>
+                  </div>
                 </div>
-              </Link>
-            
-            <Link
-            to="/whatsapp"
-            className="bg-white rounded-lg shadow p-6 border border-gray-200 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">WhatsApp</h3>
-                <p className="text-sm text-gray-600 mt-1">Manage notifications</p>
-              </div>
-              <ArrowRight className="w-5 h-5 text-gray-400" />
-            </div>
-            </Link>
-
-            <Link
-            to="/profile"
-            className="bg-white rounded-lg shadow p-6 border border-gray-200 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">Profile</h3>
-                <p className="text-sm text-gray-600 mt-1">Update your profile</p>
-              </div>
-              <ArrowRight className="w-5 h-5 text-gray-400" />
+                <div className="mt-3 flex items-center justify-between">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    group.status === 'active' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {group.status}
+                  </span>
+                  <button className="text-primary-600 hover:text-primary-500 text-sm font-medium">
+                    View Details
+                  </button>
                 </div>
-          </Link>
-
-          <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-medium">System Status</h3>
-                <p className="text-sm opacity-90 mt-1">All systems operational</p>
               </div>
-              <Shield className="w-5 h-5 opacity-90" />
-            </div>
+            ))}
           </div>
-        </div>
-
-        {/* System Info */}
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">System Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center">
-              <Database className="w-5 h-5 text-gray-400 mr-3" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Backend</p>
-                <p className="text-sm text-gray-600">Running on port 3000</p>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <Shield className="w-5 h-5 text-gray-400 mr-3" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Authentication</p>
-                <p className="text-sm text-gray-600">Local system active</p>
-              </div>
-          </div>
-            <div className="flex items-center">
-              <Crown className="w-5 h-5 text-gray-400 mr-3" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Access Level</p>
-                <p className="text-sm text-gray-600">Full system control</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default Dashboard;
+export default Dashboard

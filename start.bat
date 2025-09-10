@@ -1,29 +1,20 @@
 @echo off
-echo 🚀 Starting Kijumbe Rotational Savings Platform...
+echo Starting Kijumbe Unified Web Application...
 echo.
-
-echo 📦 Installing backend dependencies...
+echo Installing dependencies...
 npm install
-
-echo 📦 Installing frontend dependencies...
-cd frontend
-npm install
-cd ..
-
 echo.
-echo 🔧 Starting backend server...
-start "Backend Server" cmd /k "npm run dev"
-
+echo Starting server...
 echo.
-echo 🌐 Starting frontend application...
-cd frontend
-start "Frontend App" cmd /k "npm start"
-cd ..
-
+echo ========================================
+echo  Kijumbe Rotational Savings Platform
+echo ========================================
 echo.
-echo ✅ Application started successfully!
-echo 📱 Frontend: http://localhost:3000
-echo 🔌 Backend: http://localhost:5000
+echo Frontend: http://localhost:3000
+echo API: http://localhost:3000/api
+echo Admin Login: admin@kijumbe.com / admin123456
 echo.
-echo Press any key to exit...
-pause >nul
+echo Press Ctrl+C to stop the server
+echo ========================================
+echo.
+node server.js
