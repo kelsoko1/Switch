@@ -1,0 +1,494 @@
+{
+    "projectId": "68ac2652001ca468e987",
+    "projectName": "kijumbe",
+    "databases": [
+        {
+            "$id": "68ac3f000002c33d8048",
+            "name": "kijumbe_savings",
+            "enabled": true
+        }
+    ],
+    "collections": [
+        {
+            "$id": "users",
+            "name": "Users",
+            "documentSecurity": false,
+            "enabled": true,
+            "attributes": [
+                {
+                    "key": "name",
+                    "type": "string",
+                    "size": 255,
+                    "required": true
+                },
+                {
+                    "key": "email",
+                    "type": "string",
+                    "size": 255,
+                    "required": true
+                },
+                {
+                    "key": "phone",
+                    "type": "string",
+                    "size": 20,
+                    "required": true
+                },
+                {
+                    "key": "role",
+                    "type": "string",
+                    "size": 20,
+                    "required": true,
+                    "default": "member"
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "size": 20,
+                    "required": true,
+                    "default": "active"
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "email_idx",
+                    "type": "unique",
+                    "attributes": ["email"]
+                },
+                {
+                    "key": "phone_idx",
+                    "type": "unique",
+                    "attributes": ["phone"]
+                },
+                {
+                    "key": "role_idx",
+                    "type": "key",
+                    "attributes": ["role"]
+                }
+            ],
+            "$permissions": [
+                "create(\"users\")",
+                "read(\"any\")",
+                "update(\"users\")",
+                "delete(\"team:admin\")"
+            ]
+        },
+        {
+            "$id": "groups",
+            "name": "Groups",
+            "documentSecurity": false,
+            "enabled": true,
+            "attributes": [
+                {
+                    "key": "name",
+                    "type": "string",
+                    "size": 255,
+                    "required": true
+                },
+                {
+                    "key": "description",
+                    "type": "string",
+                    "size": 1000,
+                    "required": false
+                },
+                {
+                    "key": "kiongozi_id",
+                    "type": "string",
+                    "size": 36,
+                    "required": true
+                },
+                {
+                    "key": "max_members",
+                    "type": "integer",
+                    "required": true,
+                    "min": 2,
+                    "max": 30
+                },
+                {
+                    "key": "rotation_duration",
+                    "type": "integer",
+                    "required": true,
+                    "min": 1
+                },
+                {
+                    "key": "contribution_amount",
+                    "type": "integer",
+                    "required": true,
+                    "min": 0
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "size": 20,
+                    "required": true,
+                    "default": "active"
+                },
+                {
+                    "key": "current_rotation",
+                    "type": "integer",
+                    "required": true,
+                    "default": 1
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "kiongozi_idx",
+                    "type": "key",
+                    "attributes": ["kiongozi_id"]
+                },
+                {
+                    "key": "status_idx",
+                    "type": "key",
+                    "attributes": ["status"]
+                }
+            ],
+            "$permissions": [
+                "create(\"users\")",
+                "read(\"any\")",
+                "update(\"team:kiongozi\")",
+                "delete(\"team:admin\")"
+            ]
+        },
+        {
+            "$id": "members",
+            "name": "Group Members",
+            "documentSecurity": false,
+            "enabled": true,
+            "attributes": [
+                {
+                    "key": "group_id",
+                    "type": "string",
+                    "size": 36,
+                    "required": true
+                },
+                {
+                    "key": "user_id",
+                    "type": "string",
+                    "size": 36,
+                    "required": true
+                },
+                {
+                    "key": "role",
+                    "type": "string",
+                    "size": 20,
+                    "required": true,
+                    "default": "member"
+                },
+                {
+                    "key": "rotation_position",
+                    "type": "integer",
+                    "required": true,
+                    "min": 1
+                },
+                {
+                    "key": "joined_at",
+                    "type": "datetime",
+                    "required": true
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "group_user_idx",
+                    "type": "unique",
+                    "attributes": ["group_id", "user_id"]
+                },
+                {
+                    "key": "user_group_idx",
+                    "type": "key",
+                    "attributes": ["user_id"]
+                }
+            ],
+            "$permissions": [
+                "create(\"team:kiongozi\")",
+                "read(\"users\")",
+                "update(\"team:kiongozi\")",
+                "delete(\"team:kiongozi\")"
+            ]
+        },
+        {
+            "$id": "transactions",
+            "name": "Transactions",
+            "documentSecurity": false,
+            "enabled": true,
+            "attributes": [
+                {
+                    "key": "payment_method",
+                    "type": "string",
+                    "size": 50,
+                    "required": false
+                },
+                {
+                    "key": "payment_reference",
+                    "type": "string",
+                    "size": 255,
+                    "required": false
+                },
+                {
+                    "key": "metadata",
+                    "type": "string",
+                    "size": 2000,
+                    "required": false
+                },
+                {
+                    "key": "created_at",
+                    "type": "datetime",
+                    "required": true
+                },
+                {
+                    "key": "updated_at",
+                    "type": "datetime",
+                    "required": true
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "created_at_idx",
+                    "type": "key",
+                    "attributes": ["created_at"]
+                },
+                {
+                    "key": "payment_reference_idx",
+                    "type": "key",
+                    "attributes": ["payment_reference"]
+                }
+            ],
+            "$permissions": [
+                "create(\"users\")",
+                "read(\"users\")",
+                "update(\"team:admin\")",
+                "delete(\"team:admin\")"
+            ]
+        },
+        {
+            "$id": "wallets",
+            "name": "Wallets",
+            "documentSecurity": false,
+            "enabled": true,
+            "attributes": [
+                {
+                    "key": "user_id",
+                    "type": "string",
+                    "size": 36,
+                    "required": true
+                },
+                {
+                    "key": "balance",
+                    "type": "integer",
+                    "required": true,
+                    "min": 0,
+                    "default": 0
+                },
+                {
+                    "key": "pin_set",
+                    "type": "boolean",
+                    "required": true,
+                    "default": false
+                },
+                {
+                    "key": "pin_hash",
+                    "type": "string",
+                    "size": 255,
+                    "required": false
+                },
+                {
+                    "key": "daily_limit",
+                    "type": "integer",
+                    "required": true,
+                    "default": 1000000
+                },
+                {
+                    "key": "monthly_limit",
+                    "type": "integer",
+                    "required": true,
+                    "default": 10000000
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "user_wallet_idx",
+                    "type": "unique",
+                    "attributes": ["user_id"]
+                }
+            ],
+            "$permissions": [
+                "create(\"users\")",
+                "read(\"users\")",
+                "update(\"users\")",
+                "delete(\"team:admin\")"
+            ]
+        },
+        {
+            "$id": "wallet_transactions",
+            "name": "Wallet Transactions",
+            "documentSecurity": false,
+            "enabled": true,
+            "attributes": [
+                {
+                    "key": "user_id",
+                    "type": "string",
+                    "size": 36,
+                    "required": true
+                },
+                {
+                    "key": "wallet_id",
+                    "type": "string",
+                    "size": 36,
+                    "required": true
+                },
+                {
+                    "key": "amount",
+                    "type": "integer",
+                    "required": true
+                },
+                {
+                    "key": "type",
+                    "type": "string",
+                    "size": 50,
+                    "required": true
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "size": 20,
+                    "required": true,
+                    "default": "pending"
+                },
+                {
+                    "key": "description",
+                    "type": "string",
+                    "size": 1000,
+                    "required": false
+                },
+                {
+                    "key": "service",
+                    "type": "string",
+                    "size": 50,
+                    "required": false
+                },
+                {
+                    "key": "reference_id",
+                    "type": "string",
+                    "size": 255,
+                    "required": false
+                },
+                {
+                    "key": "recipient_id",
+                    "type": "string",
+                    "size": 36,
+                    "required": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "wallet_tx_idx",
+                    "type": "key",
+                    "attributes": ["wallet_id"]
+                },
+                {
+                    "key": "user_tx_idx",
+                    "type": "key",
+                    "attributes": ["user_id"]
+                },
+                {
+                    "key": "reference_idx",
+                    "type": "key",
+                    "attributes": ["reference_id"]
+                }
+            ],
+            "$permissions": [
+                "create(\"users\")",
+                "read(\"users\")",
+                "update(\"team:admin\")",
+                "delete(\"team:admin\")"
+            ]
+        },
+        {
+            "$id": "overdrafts",
+            "name": "Overdrafts",
+            "documentSecurity": false,
+            "enabled": true,
+            "attributes": [
+                {
+                    "key": "user_id",
+                    "type": "string",
+                    "size": 36,
+                    "required": true
+                },
+                {
+                    "key": "wallet_id",
+                    "type": "string",
+                    "size": 36,
+                    "required": true
+                },
+                {
+                    "key": "amount",
+                    "type": "integer",
+                    "required": true
+                },
+                {
+                    "key": "fee",
+                    "type": "integer",
+                    "required": true,
+                    "default": 0
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "size": 20,
+                    "required": true,
+                    "default": "pending"
+                },
+                {
+                    "key": "due_date",
+                    "type": "datetime",
+                    "required": true
+                },
+                {
+                    "key": "repaid_at",
+                    "type": "datetime",
+                    "required": false
+                },
+                {
+                    "key": "description",
+                    "type": "string",
+                    "size": 1000,
+                    "required": false
+                },
+                {
+                    "key": "reference_id",
+                    "type": "string",
+                    "size": 255,
+                    "required": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "user_overdrafts_idx",
+                    "type": "key",
+                    "attributes": ["user_id"]
+                },
+                {
+                    "key": "wallet_overdrafts_idx",
+                    "type": "key",
+                    "attributes": ["wallet_id"]
+                },
+                {
+                    "key": "status_idx",
+                    "type": "key",
+                    "attributes": ["status"]
+                },
+                {
+                    "key": "due_date_idx",
+                    "type": "key",
+                    "attributes": ["due_date"]
+                }
+            ],
+            "$permissions": [
+                "create(\"users\")",
+                "read(\"users\")",
+                "update(\"team:admin\")",
+                "delete(\"team:admin\")"
+            ]
+
+        }
+    ]
+}

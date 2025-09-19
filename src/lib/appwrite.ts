@@ -1,0 +1,873 @@
+import { Client, Account, Databases, Storage, Functions, Teams, Locale, Avatars } from 'appwrite';
+import { offlineFallback } from './offlineFallback';
+
+// Flag to track if we're in offline mode
+let isOfflineMode = false;
+
+// Function to check if we're online
+const checkOnlineStatus = async (): Promise<boolean> => {
+  if (!navigator.onLine) {
+    return false;
+  }
+  
+  try {
+    // Try to fetch a small resource to confirm internet connectivity
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch('https://www.google.com/generate_204', { 
+      method: 'HEAD',
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error) {
+    console.warn('Network connectivity check failed:', error);
+    return false;
+  }
+};
+
+// Appwrite configuration
+console.log('Initializing Appwrite client...');
+
+const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1';
+const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'demo-project';
+const APPWRITE_API_KEY = import.meta.env.VITE_APPWRITE_API_KEY;
+const APPWRITE_DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID || 'demo-database';
+
+// Log configuration for debugging
+console.log('Appwrite Configuration:', {
+  endpoint: APPWRITE_ENDPOINT,
+  projectId: APPWRITE_PROJECT_ID ? '***' + APPWRITE_PROJECT_ID.slice(-4) : 'Not set',
+  apiKey: APPWRITE_API_KEY ? '***' + (APPWRITE_API_KEY.length > 8 ? APPWRITE_API_KEY.slice(-8) : '') : 'Not set',
+  databaseId: APPWRITE_DATABASE_ID || 'Not set'
+});
+
+// Check if Appwrite is properly configured
+const isAppwriteConfigured = 
+  APPWRITE_ENDPOINT && 
+  APPWRITE_PROJECT_ID && 
+  APPWRITE_PROJECT_ID !== 'demo-project' && 
+  APPWRITE_DATABASE_ID && 
+  APPWRITE_DATABASE_ID !== 'demo-database';
+
+if (!isAppwriteConfigured) {
+  console.error('❌ Appwrite is not properly configured. Please check your environment variables.');
+  console.error('Required environment variables:');
+  console.error('- VITE_APPWRITE_ENDPOINT');
+  console.error('- VITE_APPWRITE_PROJECT_ID');
+  console.error('- VITE_APPWRITE_API_KEY');
+  console.error('- VITE_APPWRITE_DATABASE_ID');
+}
+
+// Collection IDs
+export const COLLECTIONS = {
+  USERS: 'users',
+  WALLETS: 'wallets',
+  TRANSACTIONS: 'transactions',
+  SAVINGS_GOALS: 'savings_goals',
+  GROUPS: 'groups',
+  GROUP_MEMBERS: 'group_members',
+  CONTRIBUTIONS: 'contributions',
+  GROUP_PAYMENTS: 'group_payments',
+  WHATSAPP_MESSAGES: 'whatsapp_messages',
+  SYSTEM_SETTINGS: 'system_settings',
+  STATUS_UPDATES: 'status_updates',
+  STATUS_VIEWS: 'status_views',
+  STREAM_MESSAGES: 'stream_messages',
+  GROUP_MESSAGES: 'group_messages',
+  FUND_COLLECTIONS: 'fund_collections',
+  FUND_CONTRIBUTIONS: 'fund_contributions',
+};
+
+// Create Appwrite client
+const client = new Client();
+
+// List of potential Appwrite endpoints to try
+const APPWRITE_ENDPOINTS = [
+  APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1',
+  'https://cloud.appwrite.io/v1',  // Global endpoint
+  'https://eu-central.appwrite.io/v1',  // EU Central
+  'https://us-east.appwrite.io/v1',  // US East
+  'https://asia-east.appwrite.io/v1'  // Asia East
+];
+
+// Function to test connection to an endpoint
+const testEndpoint = async (endpoint: string): Promise<boolean> => {
+  try {
+    console.log(`Testing connection to ${endpoint}...`);
+    const response = await fetch(`${endpoint}/health/ping`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appwrite-Project': APPWRITE_PROJECT_ID || 'demo-project',
+      },
+    });
+    
+    if (response.ok) {
+      console.log(`✅ Connection to ${endpoint} successful!`);
+      return true;
+    } else {
+      console.warn(`⚠️ Connection to ${endpoint} failed with status: ${response.status}`);
+      return false;
+    }
+  } catch (error) {
+    console.warn(`⚠️ Connection to ${endpoint} failed:`, error);
+    return false;
+  }
+};
+
+// Initialize client with fallback mechanism
+async function initializeClient() {
+  // First check if we're online
+  const isOnline = await checkOnlineStatus();
+  
+  if (!isOnline) {
+    switchToOfflineMode('Network appears to be offline');
+    return;
+  }
+  
+  let connected = false;
+  let workingEndpoint = APPWRITE_ENDPOINTS[0];
+  
+  // Try each endpoint until one works
+  for (const endpoint of APPWRITE_ENDPOINTS) {
+    try {
+      // Skip testing if we're in development mode with demo project
+      if (APPWRITE_PROJECT_ID === 'demo-project') {
+        workingEndpoint = endpoint;
+        break;
+      }
+      
+      // Test the endpoint
+      const isWorking = await testEndpoint(endpoint);
+      if (isWorking) {
+        workingEndpoint = endpoint;
+        connected = true;
+        break;
+      }
+    } catch (error) {
+      console.warn(`Failed to connect to ${endpoint}:`, error);
+    }
+  }
+  
+  // If we couldn't connect to any endpoint, switch to offline mode
+  if (!connected && APPWRITE_PROJECT_ID !== 'demo-project') {
+    switchToOfflineMode('Could not connect to any Appwrite endpoint');
+    return;
+  }
+  
+  // Configure client with the working endpoint
+  try {
+    const projectId = APPWRITE_PROJECT_ID || 'demo-project';
+    
+    console.log('Initializing Appwrite client with:', {
+      endpoint: workingEndpoint,
+      projectId: projectId.substring(0, 4) + '...' // Only show first 4 chars for security
+    });
+    
+    client
+      .setEndpoint(workingEndpoint)
+      .setProject(projectId);
+
+    // Only set API key if it exists (not needed for all operations)
+    if (APPWRITE_API_KEY) {
+      client.setSession(APPWRITE_API_KEY);
+      console.log('✅ Appwrite client initialized with API key');
+    } else {
+      console.warn('⚠️ Appwrite client initialized without API key. Some operations may be limited.');
+    }
+    
+    if (connected) {
+      console.log('✅ Appwrite client initialized successfully with working endpoint');
+      isOfflineMode = false;
+    } else {
+      console.warn('⚠️ Could not verify connection to any Appwrite endpoint. Using default endpoint.');
+    }
+  } catch (error) {
+    console.error('❌ Failed to initialize Appwrite client:', error);
+    switchToOfflineMode('Failed to initialize Appwrite client');
+  }
+  
+  // Add event listeners for online/offline status changes
+  window.addEventListener('online', async () => {
+    const isActuallyOnline = await checkOnlineStatus();
+    if (isActuallyOnline && isOfflineMode) {
+      console.log('✅ Network connection restored, attempting to reconnect to Appwrite');
+      isOfflineMode = false;
+      initializeClient();
+    }
+  });
+  
+  window.addEventListener('offline', () => {
+    switchToOfflineMode('Network connection lost');
+  });
+}
+
+// Initialize the client (don't wait for it to complete to avoid blocking)
+initializeClient().catch(error => {
+  console.error('Failed to initialize Appwrite client:', error);
+});
+
+// Initialize services
+export const account = new Account(client);
+export const databases = new Databases(client);
+export const storage = new Storage(client);
+export const functions = new Functions(client);
+export const teams = new Teams(client);
+export const locale = new Locale(client);
+export const avatars = new Avatars(client);
+
+// Database helper functions
+export const db = {
+  // Create document
+  createDocument: async (collectionId: string, documentId: string, data: any, permissions?: string[]) => {
+    return await databases.createDocument(
+      APPWRITE_DATABASE_ID,
+      collectionId,
+      documentId,
+      data,
+      permissions
+    );
+  },
+
+  // Get document
+  getDocument: async (collectionId: string, documentId: string) => {
+    return await databases.getDocument(
+      APPWRITE_DATABASE_ID,
+      collectionId,
+      documentId
+    );
+  },
+
+  // List documents
+  listDocuments: async (collectionId: string, queries?: string[]) => {
+    return await databases.listDocuments(
+      APPWRITE_DATABASE_ID,
+      collectionId,
+      queries
+    );
+  },
+
+  // Update document
+  updateDocument: async (collectionId: string, documentId: string, data: any) => {
+    return await databases.updateDocument(
+      APPWRITE_DATABASE_ID,
+      collectionId,
+      documentId,
+      data
+    );
+  },
+
+  // Delete document
+  deleteDocument: async (collectionId: string, documentId: string) => {
+    return await databases.deleteDocument(
+      APPWRITE_DATABASE_ID,
+      collectionId,
+      documentId
+    );
+  },
+};
+
+// Utility function for retrying API calls
+const retryOperation = async (operation: () => Promise<any>, maxRetries = 3, delay = 1000) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Attempt ${attempt}/${maxRetries}...`);
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check if it's a network error that might be temporary
+      const isNetworkError = error.message?.includes('ECONNRESET') || 
+                            error.message?.includes('ETIMEDOUT') || 
+                            error.message?.includes('Failed to fetch') ||
+                            error.code === 503 || 
+                            error.code === 429;
+      
+      if (isNetworkError && attempt < maxRetries) {
+        console.warn(`Network error encountered, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        // Exponential backoff
+        delay *= 2;
+      } else {
+        throw error;
+      }
+    }
+  }
+  
+  throw lastError;
+};
+
+// Authentication helper functions
+export const auth = {
+  // Get current user
+  getCurrentUser: async () => {
+    console.log('Attempting to get current user...');
+    
+    try {
+      const user = await retryOperation(async () => {
+        return await account.get();
+      });
+      console.log('✅ Successfully retrieved user:', user?.email || 'Anonymous');
+      return user;
+    } catch (error: any) {
+      if (error.code === 401) {
+        console.log('No active session, creating anonymous session...');
+        try {
+          const anonymousUser = await retryOperation(async () => {
+            return await auth.createAnonymousSession();
+          });
+          console.log('✅ Created anonymous session');
+          return anonymousUser;
+        } catch (anonError) {
+          console.error('❌ Failed to create anonymous session:', anonError);
+          // Return a minimal anonymous user object as fallback
+          return {
+            $id: 'anonymous',
+            name: 'Anonymous',
+            email: '',
+            emailVerification: false,
+            phoneVerification: false,
+            prefs: {},
+            created: new Date().toISOString(),
+            accessedAt: new Date().toISOString()
+          };
+        }
+      }
+      
+      console.error('❌ Error getting current user:', error);
+      throw error;
+    }
+  },
+
+  // Create account
+  createAccount: async (email: string, password: string, name: string) => {
+    try {
+      return await account.create('unique()', email, password, name);
+    } catch (error) {
+      console.error('Error creating account:', error);
+      throw error;
+    }
+  },
+
+  // Create email session
+  createEmailSession: async (email: string, password: string) => {
+    try {
+      return await account.createEmailPasswordSession(email, password);
+    } catch (error) {
+      console.error('Error creating session:', error);
+      throw error;
+    }
+  },
+
+  // Create anonymous session
+  createAnonymousSession: async () => {
+    try {
+      await account.createAnonymousSession();
+      // After creating anonymous session, get the account details
+      return await account.get();
+    } catch (error) {
+      console.error('Error creating anonymous session:', error);
+      // Even if we can't create an anonymous session, we'll return a minimal user object
+      return {
+        $id: 'anonymous',
+        name: 'Anonymous',
+        email: '',
+        emailVerification: false,
+        phoneVerification: false,
+        prefs: {},
+        created: new Date().toISOString(),
+        accessedAt: new Date().toISOString()
+      };
+    }
+  },
+
+  // Delete session
+  deleteSession: async (sessionId: string) => {
+    try {
+      return await account.deleteSession(sessionId);
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      throw error;
+    }
+  },
+
+  // Delete all sessions
+  deleteSessions: async () => {
+    try {
+      return await account.deleteSessions();
+    } catch (error) {
+      console.error('Error deleting sessions:', error);
+      throw error;
+    }
+  },
+
+  // Update password
+  updatePassword: async (password: string, oldPassword: string) => {
+    try {
+      return await account.updatePassword(password, oldPassword);
+    } catch (error) {
+      console.error('Error updating password:', error);
+      throw error;
+    }
+  },
+
+  // Update email
+  updateEmail: async (email: string, password: string) => {
+    try {
+      return await account.updateEmail(email, password);
+    } catch (error) {
+      console.error('Error updating email:', error);
+      throw error;
+    }
+  },
+
+  // Update name
+  updateName: async (name: string) => {
+    try {
+      return await account.updateName(name);
+    } catch (error) {
+      console.error('Error updating name:', error);
+      throw error;
+    }
+  },
+};
+
+// Wallet-specific helper functions
+export const walletHelpers = {
+  // Get user wallet
+  getUserWallet: async (userId: string) => {
+    try {
+      const result = await db.listDocuments(COLLECTIONS.WALLETS, [
+        `user_id=${userId}`,
+        'limit(1)'
+      ]);
+      return result.documents[0] || null;
+    } catch (error) {
+      console.error('Error getting user wallet:', error);
+      return null;
+    }
+  },
+
+  // Create user wallet
+  createUserWallet: async (userId: string, initialBalance: number = 0) => {
+    try {
+      const walletId = `wallet_${userId}_${Date.now()}`;
+      return await db.createDocument(
+        COLLECTIONS.WALLETS,
+        walletId,
+        {
+          user_id: userId,
+          balance: initialBalance,
+          pin_set: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        [`read("user:${userId}")`, `write("user:${userId}")`]
+      );
+    } catch (error) {
+      console.error('Error creating user wallet:', error);
+      throw error;
+    }
+  },
+
+  // Get user transactions
+  getUserTransactions: async (userId: string, page: number = 1, limit: number = 20, type?: string) => {
+    try {
+      const queries = [`user_id=${userId}`, `limit(${limit})`, `offset(${(page - 1) * limit})`, 'orderDesc(created_at)'];
+      if (type) {
+        queries.push(`type=${type}`);
+      }
+      
+      const result = await db.listDocuments(COLLECTIONS.TRANSACTIONS, queries);
+      return result;
+    } catch (error) {
+      console.error('Error getting user transactions:', error);
+      return { documents: [], total: 0 };
+    }
+  },
+
+  // Create transaction
+  createTransaction: async (userId: string, transactionData: any) => {
+    try {
+      const transactionId = `txn_${userId}_${Date.now()}`;
+      return await db.createDocument(
+        COLLECTIONS.TRANSACTIONS,
+        transactionId,
+        {
+          user_id: userId,
+          ...transactionData,
+          created_at: new Date().toISOString(),
+        },
+        [`read("user:${userId}")`, `write("user:${userId}")`]
+      );
+    } catch (error) {
+      console.error('Error creating transaction:', error);
+      throw error;
+    }
+  },
+
+  // Get user savings goals
+  getUserSavingsGoals: async (userId: string) => {
+    try {
+      const result = await db.listDocuments(COLLECTIONS.SAVINGS_GOALS, [
+        `user_id=${userId}`,
+        'orderDesc(created_at)'
+      ]);
+      return result.documents;
+    } catch (error) {
+      console.error('Error getting user savings goals:', error);
+      return [];
+    }
+  },
+
+  // Create savings goal
+  createSavingsGoal: async (userId: string, goalData: any) => {
+    try {
+      const goalId = `goal_${userId}_${Date.now()}`;
+      return await db.createDocument(
+        COLLECTIONS.SAVINGS_GOALS,
+        goalId,
+        {
+          user_id: userId,
+          ...goalData,
+          created_at: new Date().toISOString(),
+        },
+        [`read("user:${userId}")`, `write("user:${userId}")`]
+      );
+    } catch (error) {
+      console.error('Error creating savings goal:', error);
+      throw error;
+    }
+  },
+};
+
+// Group-specific helper functions
+export const groupHelpers = {
+  // Get user groups
+  getUserGroups: async (userId: string) => {
+    try {
+      const result = await db.listDocuments(COLLECTIONS.GROUP_MEMBERS, [
+        `user_id=${userId}`,
+        'orderDesc(joined_at)'
+      ]);
+      return result.documents;
+    } catch (error) {
+      console.error('Error getting user groups:', error);
+      return [];
+    }
+  },
+
+  // Get group details
+  getGroupDetails: async (groupId: string) => {
+    try {
+      return await db.getDocument(COLLECTIONS.GROUPS, groupId);
+    } catch (error) {
+      console.error('Error getting group details:', error);
+      return null;
+    }
+  },
+
+  // Create group
+  createGroup: async (creatorId: string, groupData: any) => {
+    try {
+      const groupId = `group_${creatorId}_${Date.now()}`;
+      return await db.createDocument(
+        COLLECTIONS.GROUPS,
+        groupId,
+        {
+          created_by: creatorId,
+          ...groupData,
+          created_at: new Date().toISOString(),
+        },
+        [`read("user:${creatorId}")`, `write("user:${creatorId}")`]
+      );
+    } catch (error) {
+      console.error('Error creating group:', error);
+      throw error;
+    }
+  },
+};
+
+// Utility functions
+export const utils = {
+  // Format currency
+  formatCurrency: (amount: number, currency: string = 'TZS') => {
+    return new Intl.NumberFormat('sw-TZ', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  },
+
+  // Format date
+  formatDate: (date: string | Date) => {
+    return new Intl.DateTimeFormat('sw-TZ', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(date));
+  },
+
+  // Generate unique ID
+  generateId: (prefix: string = '') => {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  },
+
+  // Validate email
+  isValidEmail: (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  },
+
+  // Validate phone number
+  isValidPhone: (phone: string) => {
+    const phoneRegex = /^(\+255|0)[0-9]{9}$/;
+    return phoneRegex.test(phone);
+  },
+};
+
+// Helper function to switch to offline mode with a reason
+const switchToOfflineMode = (reason: string): void => {
+  if (!isOfflineMode) {
+    console.warn(`Switching to offline mode: ${reason}`);
+    isOfflineMode = true;
+  }
+};
+
+// Export unified appwrite object
+export const appwrite = {
+  client,
+  account,
+  db,
+  storage,
+  functions,
+  teams,
+  locale,
+  avatars,
+  
+  // Check if we're in offline mode
+  isOfflineMode: () => isOfflineMode,
+  
+  // Force offline mode for testing
+  setOfflineMode: (mode: boolean) => {
+    isOfflineMode = mode;
+    console.log(`Manually ${mode ? 'enabled' : 'disabled'} offline mode`);
+  },
+
+  // User Account Management
+  createAccount: async (email: string, password: string, name: string) => {
+    try {
+      return await account.create('unique()', email, password, name);
+    } catch (error) {
+      console.error('Error creating account:', error);
+      throw error;
+    }
+  },
+
+  createEmailPasswordSession: async (email: string, password: string) => {
+    console.log('Creating email/password session for:', email);
+    
+    // If we're in offline mode, use the offline fallback
+    if (isOfflineMode) {
+      console.log('Using offline fallback for login');
+      return offlineFallback.auth.createEmailPasswordSession(email, password);
+    }
+    
+    try {
+      return await retryOperation(async () => {
+        try {
+          return await account.createEmailPasswordSession(email, password);
+        } catch (error: any) {
+          console.error('Error creating session:', error);
+          
+          // Handle specific error codes
+          if (error.code === 401) {
+            throw new Error('Invalid email or password');
+          } else if (error.code === 429) {
+            throw new Error('Too many login attempts. Please try again later.');
+          } else if (error.code === 503) {
+            throw new Error('Authentication service is temporarily unavailable. Please try again later.');
+          }
+          
+          // Create a custom error with a more user-friendly message
+          const authError = new Error('Failed to login');
+          authError.name = 'AuthenticationError';
+          
+          // Add original error details for debugging
+          (authError as any).originalError = error;
+          
+          throw authError;
+        }
+      }, 3, 2000);
+    } catch (error: any) {
+      console.error('Failed to login after retries:', error);
+      
+      // If we failed to login, try to switch to offline mode
+      switchToOfflineMode('Login failure');
+      return offlineFallback.auth.createEmailPasswordSession(email, password);
+    }
+  },
+
+  createAnonymousSession: async () => {
+    console.log('Creating anonymous session...');
+    
+    // If we're in offline mode, use the offline fallback
+    if (isOfflineMode) {
+      console.log('Using offline fallback for anonymous session');
+      return offlineFallback.auth.createAnonymousSession();
+    }
+    
+    try {
+      return await retryOperation(async () => {
+        try {
+          const session = await account.createAnonymousSession();
+          console.log('Anonymous session created successfully');
+          return session;
+        } catch (error: any) {
+          console.error('Error creating anonymous session:', error);
+          throw error;
+        }
+      }, 3, 2000);
+    } catch (error: any) {
+      console.error('Failed to create anonymous session after retries:', error);
+      
+      // If we failed to create an anonymous session, switch to offline mode
+      switchToOfflineMode('Failed to create anonymous session');
+      return offlineFallback.auth.createAnonymousSession();
+    }
+  },
+
+  deleteSession: async (sessionId: string) => {
+    try {
+      return await account.deleteSession(sessionId);
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      throw error;
+    }
+  },
+
+  deleteSessions: async () => {
+    try {
+      return await account.deleteSessions();
+    } catch (error) {
+      console.error('Error deleting all sessions:', error);
+      throw error;
+    }
+  },
+
+  async getAccount() {
+    console.log('Attempting to get account...');
+    
+    // If we're in offline mode, use the offline fallback
+    if (isOfflineMode) {
+      console.log('Using offline fallback for getAccount');
+      return offlineFallback.auth.getAccount();
+    }
+    
+    try {
+      return await retryOperation(async () => {
+        try {
+          const accountData = await account.get();
+          console.log('Account retrieved successfully:', accountData.email);
+          return accountData;
+        } catch (error: any) {
+          if (error.code === 401) {
+            // No active session, return null instead of throwing
+            console.log('No active session found');
+            return null;
+          }
+          throw error;
+        }
+      }, 3, 2000);
+    } catch (error: any) {
+      console.error('Error getting account after retries:', error);
+      
+      // If we failed to get the account, try to switch to offline mode
+      switchToOfflineMode('Account retrieval failure');
+      return offlineFallback.auth.getAccount();
+    }
+  },
+
+  updateName: async (name: string) => {
+    try {
+      return await account.updateName(name);
+    } catch (error) {
+      console.error('Error updating name:', error);
+      throw error;
+    }
+  },
+
+  updateEmail: async (email: string, password: string) => {
+    try {
+      return await account.updateEmail(email, password);
+    } catch (error) {
+      console.error('Error updating email:', error);
+      throw error;
+    }
+  },
+
+  updatePassword: async (password: string, oldPassword?: string) => {
+    try {
+      return await account.updatePassword(password, oldPassword);
+    } catch (error) {
+      console.error('Error updating password:', error);
+      throw error;
+    }
+  },
+
+  // Database Operations
+  createDocument: async (collectionId: string, data: any) => {
+    try {
+      return await db.createDocument(collectionId, 'unique()', data);
+    } catch (error) {
+      console.error(`Error creating document in ${collectionId}:`, error);
+      throw error;
+    }
+  },
+
+  listDocuments: async (collectionId: string, queries?: string[]) => {
+    try {
+      return await db.listDocuments(collectionId, queries || []);
+    } catch (error) {
+      console.error(`Error listing documents in ${collectionId}:`, error);
+      throw error;
+    }
+  },
+
+  getDocument: async (collectionId: string, documentId: string) => {
+    try {
+      return await db.getDocument(collectionId, documentId);
+    } catch (error) {
+      console.error(`Error getting document from ${collectionId}:`, error);
+      throw error;
+    }
+  },
+
+  updateDocument: async (collectionId: string, documentId: string, data: any) => {
+    try {
+      return await db.updateDocument(collectionId, documentId, data);
+    } catch (error) {
+      console.error(`Error updating document in ${collectionId}:`, error);
+      throw error;
+    }
+  },
+
+  deleteDocument: async (collectionId: string, documentId: string) => {
+    try {
+      return await db.deleteDocument(collectionId, documentId);
+    } catch (error) {
+      console.error(`Error deleting document from ${collectionId}:`, error);
+      throw error;
+    }
+  },
+};
+
+export default client;
