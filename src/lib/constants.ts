@@ -2,6 +2,9 @@ export const COLLECTIONS = {
     USERS: 'users',
     GROUPS: 'groups',
     MEMBERS: 'members',
+    GROUP_MEMBERS: 'group_members',
+    CONTRIBUTIONS: 'contributions',
+    GROUP_PAYMENTS: 'group_payments',
     TRANSACTIONS: 'transactions',
     PAYMENTS: 'payments',
     OVERDRAFTS: 'overdrafts',
@@ -13,6 +16,8 @@ export const COLLECTIONS = {
     STATUS_VIEWS: 'status_views',
     STREAM_ROOMS: 'stream_rooms',
     STREAM_MESSAGES: 'stream_messages',
+    FUND_COLLECTIONS: 'fund_collections',
+    FUND_CONTRIBUTIONS: 'fund_contributions',
 } as const;
 
 export const STORAGE_BUCKETS = {

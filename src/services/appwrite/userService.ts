@@ -41,6 +41,36 @@ export class UserService extends AppwriteService {
     }
   }
 
+  // Login with email and password
+  async login(email: string, password: string) {
+    try {
+      // Validate input
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+      
+      // Create a session with Appwrite
+      // This will throw an error if credentials are invalid
+      const session = await this.account.createEmailPasswordSession(email, password);
+      
+      // Get user details
+      const user = await this.getCurrentUser();
+      
+      return { success: true, user, session };
+    } catch (error: any) {
+      console.error('Login error:', error);
+      
+      // Provide specific error messages based on error codes
+      if (error.code === 401) {
+        throw new Error('Invalid email or password');
+      } else if (error.code === 429) {
+        throw new Error('Too many login attempts. Please try again later.');
+      }
+      
+      throw new Error(error.message || 'Failed to login');
+    }
+  }
+  
   // Create a new user account
   async createAccount(email: string, password: string, name: string) {
     try {

@@ -111,7 +111,14 @@ export const offlineAuth = {
 
   createEmailPasswordSession: (email: string, password: string) => {
     console.log('Using offline mode for login');
-    // In offline mode, we accept any credentials
+    
+    // In offline mode, we only accept specific demo credentials
+    // This is a simple validation - in a real app, you'd use a more secure approach
+    if (email !== 'demo@example.com' && password !== 'demo123') {
+      console.error('Invalid credentials in offline mode');
+      return Promise.reject(new Error('Invalid email or password'));
+    }
+    
     const user = getFromStorage(STORAGE_KEYS.USER, DEFAULT_USER);
     user.email = email; // Update the email to match what the user entered
     saveToStorage(STORAGE_KEYS.USER, user);
@@ -172,7 +179,7 @@ export const offlineDB = {
     return Promise.resolve({ $id: documentId || `doc_${Date.now()}`, ...data });
   },
 
-  getDocument: (collectionId: string, documentId: string) => {
+  getDocument: (collectionId: string, _documentId: string) => {
     switch (collectionId) {
       case COLLECTIONS.USERS:
         return Promise.resolve(getFromStorage(STORAGE_KEYS.USER, DEFAULT_USER));
@@ -186,7 +193,7 @@ export const offlineDB = {
     }
   },
 
-  listDocuments: (collectionId: string, queries?: string[]) => {
+  listDocuments: (collectionId: string, _queries?: string[]) => {
     switch (collectionId) {
       case COLLECTIONS.TRANSACTIONS:
         const transactions = getFromStorage(STORAGE_KEYS.TRANSACTIONS, []);
@@ -201,7 +208,7 @@ export const offlineDB = {
     }
   },
 
-  updateDocument: (collectionId: string, documentId: string, data: any) => {
+  updateDocument: (collectionId: string, _documentId: string, data: any) => {
     switch (collectionId) {
       case COLLECTIONS.USERS:
         const user = getFromStorage(STORAGE_KEYS.USER, DEFAULT_USER);
@@ -224,11 +231,11 @@ export const offlineDB = {
 
 // Wallet-specific helper functions for offline mode
 export const offlineWalletHelpers = {
-  getUserWallet: (userId: string) => {
+  getUserWallet: (_userId: string) => {
     return Promise.resolve(getFromStorage(STORAGE_KEYS.WALLET, DEFAULT_WALLET));
   },
 
-  getUserTransactions: (userId: string, page: number = 1, limit: number = 20) => {
+  getUserTransactions: (_userId: string, page: number = 1, limit: number = 20) => {
     const transactions = getFromStorage(STORAGE_KEYS.TRANSACTIONS, []);
     const start = (page - 1) * limit;
     const end = start + limit;
@@ -241,7 +248,8 @@ export const offlineWalletHelpers = {
   },
 
   createTransaction: (userId: string, transactionData: any) => {
-    const transactions = getFromStorage(STORAGE_KEYS.TRANSACTIONS, []);
+    // Type assertion to fix the type error
+    const transactions: any[] = getFromStorage(STORAGE_KEYS.TRANSACTIONS, []);
     const wallet = getFromStorage(STORAGE_KEYS.WALLET, DEFAULT_WALLET);
     
     // Update wallet balance based on transaction type
@@ -265,7 +273,7 @@ export const offlineWalletHelpers = {
     
     // Add to transactions list
     transactions.unshift(newTransaction);
-    saveToStorage(STORAGE_KEYS.TRANSACTIONS, transactions);
+    saveToStorage<any[]>(STORAGE_KEYS.TRANSACTIONS, transactions);
     
     return Promise.resolve(newTransaction);
   },

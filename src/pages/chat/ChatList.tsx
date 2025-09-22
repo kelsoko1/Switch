@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { Search, Plus, Users, MessageCircle, DollarSign } from 'lucide-react';
+import { Search, Plus, Users, DollarSign, UserPlus, UserSearch } from 'lucide-react';
 import { CreateGroupModal } from '../../components/CreateGroupModal';
+import { AddContactModal } from '../../components/chat/AddContactModal';
+import { EmptyContactsState } from '../../components/chat/EmptyContactsState';
+import { UserDirectory } from '../../components/chat/UserDirectory';
+import { contactManager } from '../../lib/contacts';
 import { useAuth } from '../../contexts/AuthContext';
 import { appwrite } from '../../lib/appwrite';
 import { Query } from 'appwrite';
@@ -111,14 +115,17 @@ const ChatList = () => {
       </div>
     );
   }
+  
   const [activeTab, setActiveTab] = useState<'direct' | 'groups'>('groups');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [showUserDirectory, setShowUserDirectory] = useState(false);
   const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [directChats, setDirectChats] = useState<DirectChat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadGroups = async () => {
+  const loadGroups = useCallback(async (forceRefresh: boolean = false) => {
     if (!user) return;
 
     try {
@@ -130,41 +137,68 @@ const ChatList = () => {
       ]);
 
       // Map the response to match our ChatGroup type
-      const groupsData = response.documents.map(doc => ({
-        id: doc.$id,
-        name: doc.name,
-        description: doc.description,
-        created_by: doc.created_by,
-        created_at: doc.$createdAt,
-        updated_at: doc.$updatedAt,
-        avatar_url: doc.avatar_url,
-        members: doc.members || [],
-        messages: doc.messages || [],
-        fund_collections: doc.fund_collections || []
-      }));
+      const groupsData = response.documents
+        .filter(doc => doc.type !== 'direct')
+        .map(doc => ({
+          id: doc.$id,
+          name: doc.name,
+          description: doc.description,
+          created_by: doc.created_by,
+          created_at: doc.$createdAt,
+          updated_at: doc.$updatedAt,
+          avatar_url: doc.avatar_url,
+          members: doc.members || [],
+          messages: doc.messages || [],
+          fund_collections: doc.fund_collections || []
+        }));
 
       setGroups(groupsData);
+      
+      // Load direct chats (contacts)
+      try {
+        const contacts = await contactManager.getContacts(user.$id, forceRefresh);
+        
+        const directChatsData = contacts.map(contact => {
+          return {
+            id: contact.chatGroupId || contact.id,
+            name: contact.name,
+            email: contact.email,
+            avatar: contact.avatar,
+            lastMessage: undefined, // We'll implement this later
+            timestamp: contact.createdAt,
+            unread: 0 // We'll implement unread count later
+          };
+        });
+        
+        setDirectChats(directChatsData);
+      } catch (error) {
+        console.error('Error loading contacts:', error);
+        setDirectChats([]);
+      }
     } catch (err) {
-      console.error('Error loading groups:', err);
-      // Don't set error message, just set empty groups array
+      console.error('Error loading chats:', err);
+      // Don't set error message, just set empty arrays
       setGroups([]);
+      setDirectChats([]);
       
       // Schedule a retry after a short delay
       setTimeout(() => {
-        loadGroups();
+        loadGroups(false);
       }, 3000);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (user) {
-      loadGroups();
-      // Direct chats will be implemented later
-      setDirectChats([]);
+      loadGroups(false);
     }
-  }, [user]);
+  }, [user, loadGroups]);
+  
+  const handleRefresh = useCallback(() => {
+    loadGroups(true);
+  }, [loadGroups]);
 
   const filteredDirectChats = directChats.filter((chat) => {
     const query = searchQuery.toLowerCase();
@@ -235,11 +269,7 @@ const ChatList = () => {
           </div>
         ) : activeTab === 'direct' ? (
           filteredDirectChats.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <MessageCircle className="mx-auto h-12 w-12 text-gray-300" />
-              <p className="mt-2">No direct messages yet</p>
-              <p className="text-sm">Start a new conversation with a friend</p>
-            </div>
+            <EmptyContactsState onAddContact={() => setShowAddContactModal(true)} />
           ) : (
             <div className="space-y-2">
               {filteredDirectChats.map((chat) => (
@@ -346,19 +376,54 @@ const ChatList = () => {
         )}
       </div>
 
-      {/* Action Button */}
-      <button
-        onClick={() => activeTab === 'groups' && setShowCreateModal(true)}
-        className="fixed bottom-20 right-4 w-14 h-14 bg-purple-500 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-purple-600 transition-colors"
-      >
-        <Plus className="w-6 h-6" />
-      </button>
+      {/* Action Buttons */}
+      <div className="fixed bottom-20 right-4 flex flex-col space-y-3">
+        {activeTab === 'direct' && (
+          <button
+            onClick={() => setShowUserDirectory(true)}
+            className="w-14 h-14 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-blue-600 transition-colors"
+            title="Browse users"
+          >
+            <UserSearch className="w-6 h-6" />
+          </button>
+        )}
+        
+        <button
+          onClick={() => {
+            if (activeTab === 'groups') {
+              setShowCreateModal(true);
+            } else {
+              setShowAddContactModal(true);
+            }
+          }}
+          className="w-14 h-14 bg-purple-500 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-purple-600 transition-colors"
+          title={activeTab === 'groups' ? 'Create group' : 'Add contact'}
+        >
+          {activeTab === 'groups' ? <Plus className="w-6 h-6" /> : <UserPlus className="w-6 h-6" />}
+        </button>
+      </div>
 
       {/* Create Group Modal */}
       {showCreateModal && (
         <CreateGroupModal
           onClose={() => setShowCreateModal(false)}
-          onGroupCreated={loadGroups}
+          onGroupCreated={() => loadGroups(false)}
+        />
+      )}
+      
+      {/* Add Contact Modal */}
+      {showAddContactModal && (
+        <AddContactModal
+          onClose={() => setShowAddContactModal(false)}
+          onContactAdded={handleRefresh}
+        />
+      )}
+      
+      {/* User Directory */}
+      {showUserDirectory && (
+        <UserDirectory
+          onClose={() => setShowUserDirectory(false)}
+          onContactAdded={handleRefresh}
         />
       )}
     </div>

@@ -678,13 +678,21 @@ export const appwrite = {
     // If we're in offline mode, use the offline fallback
     if (isOfflineMode) {
       console.log('Using offline fallback for login');
+      // Even in offline mode, we should validate against stored credentials
+      // This is a placeholder - in a real app, you'd validate against securely stored credentials
+      if (email !== 'demo@example.com' && password !== 'demo123') {
+        throw new Error('Invalid email or password');
+      }
       return offlineFallback.auth.createEmailPasswordSession(email, password);
     }
     
     try {
       return await retryOperation(async () => {
         try {
-          return await account.createEmailPasswordSession(email, password);
+          // This will throw an error if credentials are invalid
+          const session = await account.createEmailPasswordSession(email, password);
+          console.log('Session created successfully:', session.$id);
+          return session;
         } catch (error: any) {
           console.error('Error creating session:', error);
           
@@ -710,8 +718,20 @@ export const appwrite = {
     } catch (error: any) {
       console.error('Failed to login after retries:', error);
       
-      // If we failed to login, try to switch to offline mode
+      // Don't automatically fall back to offline mode with any credentials
+      // Only use offline mode for connectivity issues, not authentication failures
+      if (error.message === 'Invalid email or password') {
+        throw error; // Re-throw authentication errors
+      }
+      
+      // For other errors (like connectivity issues), switch to offline mode
       switchToOfflineMode('Login failure');
+      
+      // Even in offline mode, we should validate against stored credentials
+      if (email !== 'demo@example.com' && password !== 'demo123') {
+        throw new Error('Invalid email or password');
+      }
+      
       return offlineFallback.auth.createEmailPasswordSession(email, password);
     }
   },

@@ -30,6 +30,12 @@ export const formatNumber = (amount: number): string => {
   return new Intl.NumberFormat('sw-TZ').format(amount);
 };
 
+interface CurrencyValidationResult {
+  isValid: boolean;
+  amount: number;
+  error?: string;
+}
+
 export const CURRENCY_SYMBOL = 'TZS';
 export const CURRENCY_NAME = 'Tanzanian Shilling';
 export const CURRENCY_CODE = 'TZS';
@@ -90,19 +96,39 @@ export const validateAmount = (amount: number, min: number = 0, max: number = 10
   return amount >= min && amount <= max && !isNaN(amount);
 };
 
-export const validateCurrencyInput = (value: string): { isValid: boolean; amount: number; error?: string } => {
-  const amount = parseCurrency(value);
+export const validateCurrencyInput = (value: string, minAmount?: number): CurrencyValidationResult => {
+  if (!value || value.trim() === '') {
+    return {
+      isValid: false,
+      amount: 0,
+      error: 'Tafadhali ingiza kiasi'
+    };
+  }
+  
+  // Convert string to number
+  const amount = typeof value === 'string' ? parseCurrency(value) : Number(value);
   
   if (isNaN(amount) || amount < 0) {
     return { isValid: false, amount: 0, error: 'Kiasi si sahihi' };
   }
   
-  if (amount < COMMON_AMOUNTS.MINIMUM) {
-    return { isValid: false, amount, error: `Kiasi cha chini ni ${formatCurrency(COMMON_AMOUNTS.MINIMUM)}` };
+  // Use provided minAmount or default to COMMON_AMOUNTS.MINIMUM
+  const minimumAmount = minAmount !== undefined ? minAmount : COMMON_AMOUNTS.MINIMUM;
+  
+  if (amount < minimumAmount) {
+    return { 
+      isValid: false, 
+      amount, 
+      error: `Kiasi lazima kiwe angalau ${formatCurrency(minimumAmount)}` 
+    };
   }
   
   if (amount > COMMON_AMOUNTS.MAXIMUM) {
-    return { isValid: false, amount, error: `Kiasi cha juu ni ${formatCurrency(COMMON_AMOUNTS.MAXIMUM)}` };
+    return { 
+      isValid: false, 
+      amount, 
+      error: `Kiasi cha juu ni ${formatCurrency(COMMON_AMOUNTS.MAXIMUM)}` 
+    };
   }
   
   return { isValid: true, amount };

@@ -13,6 +13,7 @@ const MainLayout = () => {
     { icon: MessageSquare, label: 'Chats', path: '/' },
     { icon: Video, label: 'Streams', path: '/streams' },
     { icon: Wallet, label: 'Wallet', path: '/wallet' },
+
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 

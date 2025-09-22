@@ -1,6 +1,6 @@
 import { AppwriteService } from './appwriteService';
 import { COLLECTIONS } from '@/lib/constants';
-import { ID, Query } from 'appwrite';
+import { Query } from 'appwrite';
 import { walletService } from './walletService';
 
 export interface KijumbeGroup {
@@ -64,6 +64,13 @@ export class GroupService extends AppwriteService {
   // Create a new Kijumbe group
   async createGroup(userId: string, groupData: Partial<KijumbeGroup>): Promise<KijumbeGroup | null> {
     try {
+      console.log(`Creating new Kijumbe group for user ${userId}`);
+      
+      // Validate required fields
+      if (!groupData.name) {
+        throw new Error('Group name is required');
+      }
+      
       const groupId = this.generateId('group_');
       const group = await this.createDocument(
         COLLECTIONS.GROUPS,
@@ -79,8 +86,13 @@ export class GroupService extends AppwriteService {
           created_at: new Date().toISOString(),
           description: groupData.description || '',
         },
-        [`read("user:${userId}")`, `write("user:${userId}")`]
+        [
+          `read("user:${userId}")`, 
+          `write("user:${userId}")`
+        ]
       );
+
+      console.log(`Group created with ID: ${groupId}`);
 
       // Add creator as kiongozi (leader)
       const memberId = this.generateId('member_');
@@ -94,10 +106,28 @@ export class GroupService extends AppwriteService {
           rotation_position: 1, // Leader is first to receive funds
           joined_at: new Date().toISOString(),
         },
-        [`read("user:${userId}")`, `write("user:${userId}")`]
+        [
+          `read("user:${userId}")`, 
+          `write("user:${userId}")`
+        ]
       );
 
-      return group as unknown as KijumbeGroup;
+      console.log(`Added user ${userId} as kiongozi to group ${groupId}`);
+
+      // Create initial group data structure with empty members array
+      return {
+        ...group,
+        members: [{
+          $id: memberId,
+          group_id: groupId,
+          user_id: userId,
+          role: 'kiongozi',
+          rotation_position: 1,
+          joined_at: new Date().toISOString(),
+        }],
+        contributions: [],
+        payments: []
+      } as unknown as KijumbeGroup;
     } catch (error) {
       console.error('Error creating group:', error);
       return null;

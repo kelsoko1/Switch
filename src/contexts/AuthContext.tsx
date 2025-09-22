@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { appwrite } from '../lib/appwrite';
+import { userService } from '../services/appwrite';
 
 interface User {
   $id: string;
@@ -69,7 +70,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('Attempting login for:', email);
       
-      // First, try to get the current session
+      // Validate input
+      if (!email || !password) {
+        return { success: false, error: 'Email and password are required' };
+      }
+      
+      // First, check if we're already logged in
       try {
         const existingAccount = await appwrite.getAccount();
         if (existingAccount && existingAccount.email === email) {
@@ -92,25 +98,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log('No existing session, proceeding with login');
       }
 
-      // Create new session
-      console.log('Creating new email/password session...');
-      await appwrite.createEmailPasswordSession(email, password);
-      
-      console.log('Session created, fetching account details...');
-      const account = await appwrite.getAccount();
-      
-      if (!account) {
-        throw new Error('Failed to get account details after login');
+      // Use the userService to login - this will validate credentials against Appwrite
+      try {
+        console.log('Using userService for login...');
+        const result = await userService.login(email, password);
+        
+        if (result.success && result.user) {
+          console.log('Login successful for:', result.user.email);
+          setUser({
+            $id: result.user.$id,
+            name: result.user.name,
+            email: result.user.email,
+            avatar: result.user.prefs?.avatar,
+          });
+          return { success: true };
+        } else {
+          throw new Error('Failed to get user details after login');
+        }
+      } catch (error: any) {
+        console.error('Authentication error:', error);
+        return { 
+          success: false, 
+          error: error.message || 'Invalid email or password'
+        };
       }
-      
-      console.log('Login successful for:', account.email);
-      setUser({
-        $id: account.$id,
-        name: account.name,
-        email: account.email,
-        avatar: account.prefs?.avatar,
-      });
-      return { success: true };
     } catch (error: any) {
       console.error('Login error:', error);
       

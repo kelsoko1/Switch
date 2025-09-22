@@ -17,8 +17,15 @@ export default defineConfig({
     },
   },
   server: {
+    port: 2025,
+    host: true,
     proxy: {
-      '/api': 'http://localhost:3000',
+      '/api': 'http://localhost:2025',
     },
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    minify: true,
   },
 });

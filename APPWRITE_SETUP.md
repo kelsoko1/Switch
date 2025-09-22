@@ -1,69 +1,110 @@
 # Appwrite Integration Setup Guide
 
-This guide explains how to set up and use the Appwrite integration for the Kijumbe application.
+This guide explains how to set up and use the Appwrite integration for the Switch application. The app now works directly with Appwrite for all data operations, including writing data, retrieving data, and real-time updates.
 
 ## Prerequisites
 
 1. An Appwrite account (sign up at [https://appwrite.io](https://appwrite.io))
 2. Node.js installed on your machine
-3. The Kijumbe application codebase
+3. The Switch application codebase
 
 ## Setup Steps
 
 ### 1. Create an Appwrite Project
 
 1. Log in to your Appwrite Console
-2. Create a new project or use an existing one
+2. Create a new project (e.g., "Switch App")
 3. Note down your Project ID
 
-### 2. Create an API Key
+### 2. Create a Database
 
-1. In your Appwrite project, go to "API Keys"
+1. In your Appwrite project, go to Databases
+2. Create a new database (e.g., "switch-db")
+3. Note down your Database ID
+
+### 3. Create an API Key
+
+1. Go to API Keys in your project settings
 2. Create a new API key with the following permissions:
-   - `users.read`
-   - `users.write`
-   - `databases.read`
-   - `databases.write`
-   - `documents.read`
-   - `documents.write`
-3. Note down the API key
+   - databases.read
+   - databases.write
+   - documents.read
+   - documents.write
+   - collections.read
+   - collections.write
+   - storage.read
+   - storage.write
+3. Note down your API Key (you'll only see it once)
 
-### 3. Configure Environment Variables
+### 4. Configure the Application
 
-1. Copy the `.env.example` file to `.env.local` if you haven't already:
-   ```
-   cp .env.example .env.local
-   ```
-
-2. Update the following variables in your `.env.local` file:
-   ```
-   APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
-   APPWRITE_PROJECT_ID=your_project_id
-   APPWRITE_API_KEY=your_api_key
-   APPWRITE_DATABASE_ID=kijumbe_savings
-   ```
-
-### 4. Run the Setup Script
-
-This script will create the necessary database and collections in your Appwrite project:
+1. In the root directory of the Switch app, create or edit the `.env` file with the following content:
 
 ```
-npm run appwrite:setup
+VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
+VITE_APPWRITE_PROJECT_ID=your-project-id
+VITE_APPWRITE_DATABASE_ID=your-database-id
+VITE_APPWRITE_API_KEY=your-api-key
 ```
 
-### 5. Seed the Database (Optional)
+2. Replace the placeholder values with your actual Appwrite credentials
 
-To populate your database with test data:
+### 5. Initialize Appwrite Collections
 
+Run the setup script to initialize all required Appwrite collections and indexes:
+
+```bash
+node src/scripts/setup-appwrite.js
 ```
-npm run appwrite:seed
-```
 
-This will create:
-- 3 test users (john@example.com, jane@example.com, admin@example.com)
-- 3 test groups
-- Wallets for each user
-- Initial transactions and contributions
+This script will:
+- Create all necessary collections in your Appwrite database
+- Set up proper indexes for efficient queries
+- Create storage buckets for media files
+- Start the development server
+
+## Data Structure
+
+The Switch app uses the following collections in Appwrite:
+
+1. **users** - User accounts and profiles
+2. **wallets** - User wallets with balance information
+3. **wallet_transactions** - Transaction history for wallets
+4. **groups** - Kijumbe groups information
+5. **group_members** - Members of each group
+6. **contributions** - Contributions made to groups
+7. **group_payments** - Payments made from groups to members
+8. **status_updates** - User status updates (similar to stories)
+9. **status_views** - Records of who viewed each status
+10. **stream_rooms** - Video streaming rooms
+11. **stream_messages** - Messages in streaming rooms
+
+## Using Appwrite in the App
+
+### Real-time Data
+
+The app now uses Appwrite's real-time subscriptions to update data instantly when changes occur. This is implemented in these key areas:
+
+1. **Wallet Balance** - Updates in real-time when transactions occur
+2. **Group Contributions** - Members see contributions as they happen
+3. **Status Updates** - New statuses appear without refreshing
+
+### Direct Data Operations
+
+All data operations now go directly to Appwrite:
+
+1. **Create** - New records are created directly in Appwrite collections
+2. **Read** - Data is fetched directly from Appwrite with proper queries
+3. **Update** - Changes are immediately persisted to Appwrite
+4. **Delete** - Deleted records are removed from Appwrite
+
+### Offline Support
+
+The app includes offline support with:
+
+1. **Caching** - Important data is cached for offline use
+2. **Sync** - Changes made offline are synced when connection is restored
+3. **Fallback** - Critical features work even without internet
 
 ## Using the Appwrite Services
 

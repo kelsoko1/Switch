@@ -43,7 +43,13 @@ export class WalletService extends AppwriteService {
       ]);
 
       if (result.documents.length > 0) {
-        return result.documents[0] as unknown as Wallet;
+        const wallet = result.documents[0] as unknown as Wallet;
+        
+        // Get service balances and add them to the wallet object
+        const serviceBalances = await this.getServiceBalances(userId);
+        wallet.serviceBalances = serviceBalances;
+        
+        return wallet;
       }
 
       // If no wallet exists, create one
@@ -57,6 +63,16 @@ export class WalletService extends AppwriteService {
   // Create user wallet
   async createUserWallet(userId: string, initialBalance: number = 0): Promise<Wallet> {
     try {
+      // Check if wallet already exists
+      const existingWallet = await this.listDocuments(COLLECTIONS.WALLETS, [
+        Query.equal('user_id', userId)
+      ]);
+
+      if (existingWallet.documents.length > 0) {
+        console.log(`Wallet already exists for user ${userId}`);
+        return existingWallet.documents[0] as unknown as Wallet;
+      }
+
       const walletId = this.generateId('wallet_');
       const walletData = {
         user_id: userId,
@@ -69,14 +85,37 @@ export class WalletService extends AppwriteService {
         updated_at: new Date().toISOString(),
       };
 
+      console.log(`Creating new wallet for user ${userId}`);
       const wallet = await this.createDocument(
         COLLECTIONS.WALLETS,
         walletId,
         walletData,
-        [`read("user:${userId}")`, `write("user:${userId}")`]
+        [
+          `read("user:${userId}")`, 
+          `write("user:${userId}")`
+        ]
       );
 
-      return wallet as unknown as Wallet;
+      // Create initial deposit transaction
+      if (initialBalance > 0) {
+        await this.createTransaction(userId, {
+          amount: initialBalance,
+          type: 'deposit',
+          status: 'completed',
+          description: 'Initial wallet deposit',
+          service: 'general'
+        });
+      }
+
+      // Initialize service balances
+      const serviceBalances = {
+        kijumbe: 0,
+        utilities: 0,
+        transportation: 0,
+        investment: 0
+      };
+
+      return { ...wallet, serviceBalances } as unknown as Wallet;
     } catch (error) {
       console.error('Error creating user wallet:', error);
       throw error;

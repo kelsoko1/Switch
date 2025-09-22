@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../utils/currency';
 import { COLLECTIONS } from '@/lib/constants';
+import { useWalletRealtime, useTransactionsRealtime } from '@/hooks/useRealtime';
 import SendMoneyModal from '../../components/wallet/SendMoneyModal';
 import ReceiveMoneyModal from '../../components/wallet/ReceiveMoneyModal';
 import TopUpModal from '../../components/wallet/TopUpModal';
@@ -112,6 +113,10 @@ const WalletTanzania = () => {
       // Use transactions directly from the service without normalizing
       setTransactions(transactionsResult.documents);
       setWalletLoading(false);
+      
+      // Set up real-time subscriptions
+      console.log('Setting up real-time subscriptions for wallet and transactions');
+      
     } catch (error) {
       console.error('Error fetching wallet data:', error);
       setWalletLoading(false);
@@ -122,9 +127,29 @@ const WalletTanzania = () => {
     }
   };
   
+  // Initial data fetch
   useEffect(() => {
     fetchWalletData();
   }, []);
+  
+  // Use real-time hooks for wallet and transactions
+  const realtimeWallet = useWalletRealtime(wallet);
+  const { transactions: realtimeTransactions } = useTransactionsRealtime(transactions);
+  
+  // Update state when real-time data changes
+  useEffect(() => {
+    if (realtimeWallet && wallet?.$id === realtimeWallet.$id) {
+      console.log('Updating wallet from real-time data:', realtimeWallet);
+      setWallet(realtimeWallet);
+    }
+  }, [realtimeWallet]);
+  
+  useEffect(() => {
+    if (realtimeTransactions && realtimeTransactions.length > 0) {
+      console.log('Updating transactions from real-time data:', realtimeTransactions);
+      setTransactions(realtimeTransactions);
+    }
+  }, [realtimeTransactions]);
   
   const handleRefresh = () => {
     fetchWalletData();

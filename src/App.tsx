@@ -5,6 +5,7 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import ChatList from './pages/chat/ChatList';
 import ChatRoom from './pages/chat/ChatRoom';
+import DirectChatRoom from './pages/chat/DirectChatRoom';
 import LiveStreams from './pages/streams/LiveStreams';
 import CreateStream from './pages/streams/CreateStream';
 import StreamView from './pages/streams/StreamView';
@@ -13,6 +14,7 @@ import KijumbeDashboard from './pages/kijumbe/KijumbeDashboard';
 import CreateGroup from './pages/kijumbe/CreateGroup';
 import GroupDetails from './pages/kijumbe/GroupDetails';
 import Settings from './pages/settings/Settings';
+
 
 import { XMPPProvider } from './contexts/XMPPContext';
 import { AppwriteProvider } from './contexts/AppwriteContext';
@@ -43,9 +45,9 @@ function AppContentWithAuth() {
 
             <Route path="/" element={isAuthenticated ? <MainLayout /> : <Navigate to="/auth/login" />}>
               <Route index element={<Navigate to="chats" replace />} />
-              <Route path="chats" element={<ChatList />}>
-                <Route path=":chatId" element={<ChatRoom />} />
-              </Route>
+              <Route path="chats" element={<ChatList />} />
+              <Route path="chat/group/:chatId" element={<ChatRoom />} />
+              <Route path="chat/:id" element={<DirectChatRoom />} />
               <Route path="streams" element={<LiveStreams />} />
               <Route path="streams/create" element={<CreateStream />} />
               <Route path="streams/:streamId" element={<StreamView />} />
@@ -54,6 +56,7 @@ function AppContentWithAuth() {
               <Route path="kijumbe/create-group" element={<CreateGroup />} />
               <Route path="kijumbe/group/:groupId" element={<GroupDetails />} />
               <Route path="settings" element={<Settings />} />
+
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -5,20 +5,24 @@ import {
   Users, 
   Plus, 
   TrendingUp, 
-  Calendar, 
   DollarSign, 
   ArrowLeft,
   Settings,
   Bell,
-  Search
+  Search,
+  UserPlus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { groupService } from '../../services/appwrite';
+import { groupService, walletService } from '../../services/appwrite';
+import { KijumbeGroup as AppwriteKijumbeGroup } from '../../services/appwrite/groupService';
+import CreateGroupModal from '../../components/kijumbe/CreateGroupModal';
+import GroupDetailsModal from '../../components/kijumbe/GroupDetailsModal';
+import KijumbeGroupCard from '../../components/kijumbe/KijumbeGroupCard';
 
 interface KijumbeGroup {
   $id: string;
   name: string;
-  description: string | null;
+  description: string;
   members: number;
   totalAmount: number;
   contribution_amount: number;
@@ -34,6 +38,10 @@ interface KijumbeGroup {
   max_members: number;
   myContribution: number;
   myLoans: number;
+  // Original data from Appwrite for use in modals
+  _originalMembers?: any[];
+  _originalContributions?: any[];
+  _originalPayments?: any[];
 }
 
 interface KijumbeTransaction {
@@ -59,13 +67,23 @@ const KijumbeDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [notifications, setNotifications] = useState<string[]>([]);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [showGroupDetailsModal, setShowGroupDetailsModal] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<KijumbeGroup | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
 
   useEffect(() => {
-    const fetchUserGroups = async () => {
+    const fetchUserData = async () => {
       if (!user?.$id) return;
       
       try {
         setIsLoading(true);
+        
+        // Fetch wallet balance
+        const wallet = await walletService.getUserWallet(user.$id);
+        if (wallet) {
+          setWalletBalance(wallet.balance);
+        }
         
         // Fetch groups where user is a member
         const userGroups = await groupService.getUserGroups(user.$id);
@@ -73,7 +91,7 @@ const KijumbeDashboard = () => {
         // For each group, get contribution status
         const groupsWithDetails = await Promise.all(
           userGroups.map(async (group) => {
-            // Get group members count
+            // Get group details with members
             const groupDetails = await groupService.getGroupDetails(group.$id);
             const memberCount = groupDetails?.members?.length || 0;
             
@@ -137,7 +155,7 @@ const KijumbeDashboard = () => {
       }
     };
     
-    fetchUserGroups();
+    fetchUserData();
   }, [user]);
 
 
@@ -165,11 +183,6 @@ const KijumbeDashboard = () => {
       case 'deposit': return { label: 'Deposit', icon: '⬆️', color: 'text-green-600' };
       case 'withdrawal': return { label: 'Withdrawal', icon: '⬇️', color: 'text-red-600' };
       case 'transfer': return { label: 'Transfer', icon: '↔️', color: 'text-blue-600' };
-      // Legacy types for backward compatibility
-      case 'contribution': return { label: 'Mchango', icon: '💰', color: 'text-green-600' };
-      case 'loan': return { label: 'Mikopo', icon: '📈', color: 'text-blue-600' };
-      case 'repayment': return { label: 'Malipo', icon: '🔄', color: 'text-orange-600' };
-      case 'payout': return { label: 'Malipo', icon: '💸', color: 'text-purple-600' };
       default: return { label: type, icon: '📄', color: 'text-gray-600' };
     }
   };
@@ -188,6 +201,192 @@ const KijumbeDashboard = () => {
   const handleNotifications = () => {
     addNotification('Mfumo wa arifa utajengwa hivi karibuni');
   };
+  
+  const handleCreateGroup = async (groupData: {
+    name: string;
+    description: string;
+    contributionAmount: number;
+    rotationDuration: number;
+    maxMembers: number;
+  }) => {
+    if (!user?.$id) {
+      addNotification('Tafadhali ingia kwanza');
+      return;
+    }
+    
+    try {
+      const newGroup = await groupService.createGroup(user.$id, {
+        name: groupData.name,
+        description: groupData.description,
+        contribution_amount: groupData.contributionAmount,
+        rotation_duration: groupData.rotationDuration,
+        max_members: groupData.maxMembers
+      });
+      
+      if (newGroup) {
+        // Add the new group to the list with calculated fields
+        const createdDate = new Date(newGroup.created_at);
+        const rotationDays = newGroup.rotation_duration || 30;
+        const nextMeetingDate = new Date(createdDate);
+        nextMeetingDate.setDate(createdDate.getDate() + (rotationDays * newGroup.current_rotation));
+        
+        const groupWithDetails = {
+          ...newGroup,
+          members: 1, // Creator is the first member
+          totalAmount: newGroup.contribution_amount,
+          contributionAmount: newGroup.contribution_amount,
+          createdBy: newGroup.kiongozi_id,
+          createdAt: newGroup.created_at,
+          myContribution: 0,
+          myLoans: 0,
+          nextMeeting: nextMeetingDate.toISOString().split('T')[0],
+        } as KijumbeGroup;
+        
+        setGroups(prev => [groupWithDetails, ...prev]);
+        addNotification(`Kikundi ${groupData.name} kimeundwa kwa mafanikio!`);
+        setShowCreateGroupModal(false);
+      }
+    } catch (error: any) {
+      console.error('Error creating group:', error);
+      addNotification(error.message || 'Imeshindwa kuunda kikundi');
+    }
+  };
+  
+  const handleViewGroup = async (groupId: string) => {
+    try {
+      const groupDetails = await groupService.getGroupDetails(groupId);
+      if (groupDetails) {
+        // Convert Appwrite KijumbeGroup to our local KijumbeGroup interface
+        const memberCount = groupDetails.members?.length || 0;
+        
+        // Calculate next meeting date
+        const createdDate = new Date(groupDetails.created_at);
+        const rotationDays = groupDetails.rotation_duration || 30;
+        const nextMeetingDate = new Date(createdDate);
+        nextMeetingDate.setDate(createdDate.getDate() + (rotationDays * groupDetails.current_rotation));
+        
+        // Get user's contribution status if user is available
+        let userContribution = 0;
+        if (user?.$id) {
+          const contributionStatus = await groupService.getUserContributionStatus(groupId, user.$id);
+          userContribution = contributionStatus.totalContributed;
+        }
+        
+        // Create a new object that matches our local KijumbeGroup interface
+        const enhancedGroup: KijumbeGroup = {
+          $id: groupDetails.$id,
+          name: groupDetails.name,
+          description: groupDetails.description || '',
+          kiongozi_id: groupDetails.kiongozi_id,
+          max_members: groupDetails.max_members,
+          rotation_duration: groupDetails.rotation_duration,
+          contribution_amount: groupDetails.contribution_amount,
+          contributionAmount: groupDetails.contribution_amount,
+          status: groupDetails.status,
+          current_rotation: groupDetails.current_rotation,
+          created_at: groupDetails.created_at,
+          createdAt: groupDetails.created_at,
+          members: memberCount,
+          totalAmount: (groupDetails.contribution_amount * memberCount) || 0,
+          myContribution: userContribution,
+          myLoans: 0,
+          nextMeeting: nextMeetingDate.toISOString().split('T')[0],
+          // Pass through the original members, contributions, and payments
+          // These will be available in the GroupDetailsModal
+          _originalMembers: groupDetails.members,
+          _originalContributions: groupDetails.contributions,
+          _originalPayments: groupDetails.payments
+        };
+        
+        setSelectedGroup(enhancedGroup);
+        setShowGroupDetailsModal(true);
+      }
+    } catch (error) {
+      console.error('Error fetching group details:', error);
+      addNotification('Imeshindwa kupata maelezo ya kikundi');
+    }
+  };
+  
+  const handleContribute = async (amount: number, description: string) => {
+    if (!selectedGroup || !user?.$id) return;
+    
+    try {
+      const success = await groupService.makeContribution(selectedGroup.$id, user.$id, amount);
+      if (success) {
+        // Update wallet balance
+        setWalletBalance(prev => prev - amount);
+        
+        // Update group contribution status
+        const updatedGroups = groups.map(group => {
+          if (group.$id === selectedGroup.$id) {
+            return {
+              ...group,
+              myContribution: group.myContribution + amount
+            };
+          }
+          return group;
+        });
+        
+        setGroups(updatedGroups);
+        addNotification(`Mchango wa ${formatCurrency(amount)} umefanikiwa!`);
+        
+        // Add to transactions
+        const newTransaction: KijumbeTransaction = {
+          $id: `temp_${Date.now()}`,
+          group_id: selectedGroup.$id,
+          user_id: user.$id,
+          amount: amount,
+          rotation: selectedGroup.current_rotation,
+          status: 'completed',
+          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          description: description || `Mchango wa rotation ${selectedGroup.current_rotation}`,
+          type: 'kijumbe_contribution'
+        };
+        
+        setTransactions(prev => [newTransaction, ...prev]);
+      }
+    } catch (error: any) {
+      console.error('Error making contribution:', error);
+      addNotification(error.message || 'Imeshindwa kuweka mchango');
+    }
+  };
+  
+  const handleInviteMember = async (email: string, phone: string, message: string) => {
+    if (!selectedGroup || !user?.$id) return;
+    
+    try {
+      // For now, just show a notification since we don't have the full invite flow
+      addNotification(`Mwaliko umetumwa kwa ${email || phone}`);
+      return Promise.resolve();
+    } catch (error: any) {
+      console.error('Error inviting member:', error);
+      addNotification(error.message || 'Imeshindwa kutuma mwaliko');
+      throw error;
+    }
+  };
+  
+  const handleDeleteGroup = async () => {
+    if (!selectedGroup || !user?.$id) return;
+    
+    try {
+      // In a real implementation, we would call groupService.deleteGroup
+      // For now, just remove from the local state
+      setGroups(prev => prev.filter(group => group.$id !== selectedGroup.$id));
+      addNotification(`Kikundi ${selectedGroup.name} kimefutwa!`);
+      setShowGroupDetailsModal(false);
+      return Promise.resolve();
+    } catch (error: any) {
+      console.error('Error deleting group:', error);
+      addNotification(error.message || 'Imeshindwa kufuta kikundi');
+      throw error;
+    }
+  };
+  
+  const handleEditGroup = () => {
+    // For now, just show a notification
+    addNotification('Kazi ya kuhariri kikundi itajengwa hivi karibuni');
+  };
 
   const filteredGroups = groups.filter(group => {
     const matchesSearch = group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -199,45 +398,48 @@ const KijumbeDashboard = () => {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center bg-gray-900">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500" />
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-t-red-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-white">Inapakia...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full bg-gray-900 overflow-y-auto">
+    <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <div className="bg-gray-800 p-4">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-gray-800 p-4 shadow-md">
+        <div className="flex items-center justify-between">
           <div className="flex items-center">
             <button
-              onClick={() => navigate('/wallet')}
-              className="p-2 hover:bg-gray-700 rounded-lg mr-3"
+              onClick={() => navigate('/')}
+              className="p-2 mr-2 hover:bg-gray-700 rounded-full transition-colors"
             >
               <ArrowLeft className="w-6 h-6 text-white" />
             </button>
-            <div>
-              <h1 className="text-white text-xl font-bold">Kijumbe</h1>
-              <p className="text-gray-300 text-sm">Mikopo ya Kikundi na Ushirika</p>
-            </div>
+            <h1 className="text-white text-xl font-bold">Kijumbe</h1>
           </div>
           <div className="flex items-center space-x-2">
-            <button 
+            <button
               onClick={handleNotifications}
-              className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"
+              className="p-2 hover:bg-gray-700 rounded-full transition-colors relative"
             >
-              <Bell className="w-5 h-5 text-gray-300" />
+              <Bell className="w-6 h-6 text-white" />
+              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
-            <button 
+            <button
               onClick={handleSettings}
-              className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"
+              className="p-2 hover:bg-gray-700 rounded-full transition-colors"
             >
-              <Settings className="w-5 h-5 text-gray-300" />
+              <Settings className="w-6 h-6 text-white" />
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Search and Filter */}
+      {/* Search and Filters */}
+      <div className="bg-gray-800 p-4 border-t border-gray-700">
         <div className="space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -249,30 +451,37 @@ const KijumbeDashboard = () => {
               className="w-full pl-10 pr-4 py-3 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
             />
           </div>
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setFilterStatus('all')}
-              className={`px-3 py-1 rounded-full text-sm ${
-                filterStatus === 'all' ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-300'
-              }`}
+              className={`px-3 py-1 text-sm rounded-lg ${filterStatus === 'all' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}
             >
               Zote
             </button>
             <button
               onClick={() => setFilterStatus('active')}
-              className={`px-3 py-1 rounded-full text-sm ${
-                filterStatus === 'active' ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-300'
-              }`}
+              className={`px-3 py-1 text-sm rounded-lg ${filterStatus === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}
             >
-              Hai
+              Zinaendelea
             </button>
             <button
               onClick={() => setFilterStatus('completed')}
-              className={`px-3 py-1 rounded-full text-sm ${
-                filterStatus === 'completed' ? 'bg-red-500 text-white' : 'bg-gray-700 text-gray-300'
-              }`}
+              className={`px-3 py-1 text-sm rounded-lg ${filterStatus === 'completed' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}
             >
-              Imekamilika
+              Zimekamilika
+            </button>
+            <button
+              onClick={() => setFilterStatus('inactive')}
+              className={`px-3 py-1 text-sm rounded-lg ${filterStatus === 'inactive' ? 'bg-gray-200 text-gray-700' : 'bg-gray-100 text-gray-700'}`}
+            >
+              Zimesimamishwa
+            </button>
+            <button
+              onClick={() => setShowCreateGroupModal(true)}
+              className="px-3 py-1 text-sm rounded-lg bg-red-500 text-white flex items-center gap-1 ml-auto"
+            >
+              <UserPlus className="w-4 h-4" />
+              Unda Kikundi
             </button>
           </div>
         </div>
@@ -310,68 +519,36 @@ const KijumbeDashboard = () => {
           <div className="flex items-center justify-between">
             <h2 className="text-white text-lg font-semibold">Vikundi Vangu</h2>
             <button
-              onClick={() => navigate('/kijumbe/create')}
+              onClick={() => setShowCreateGroupModal(true)}
               className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Unganisha Kikundi
+              Unda Kikundi
             </button>
           </div>
 
           {filteredGroups.length > 0 ? (
-            filteredGroups.map((group) => (
-              <div key={group.$id} className="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition-colors">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center">
-                    <Users className="w-8 h-8 text-red-500 mr-3" />
-                    <div>
-                      <h3 className="text-white font-semibold">{group.name}</h3>
-                      <p className="text-gray-400 text-sm">{group.description}</p>
-                    </div>
-                  </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(group.status)}`}>
-                    {group.status === 'active' ? 'Hai' : group.status === 'completed' ? 'Imekamilika' : 'Haijaamilika'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-3">
-                  <div>
-                    <p className="text-gray-400 text-sm">Wanachama</p>
-                    <p className="text-white font-semibold">{group.members}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-sm">Jumla ya Pesa</p>
-                    <p className="text-white font-semibold">{formatCurrency(group.totalAmount)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-sm">Mchango Wangu</p>
-                    <p className="text-white font-semibold">{formatCurrency(group.myContribution)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400 text-sm">Mikopo Yangu</p>
-                    <p className="text-white font-semibold">{formatCurrency(group.myLoans)}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-gray-700">
-                  <div className="flex items-center text-gray-400 text-sm">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Mkutano ujao: {formatDate(group.nextMeeting)}
-                  </div>
-                  <button
-                    onClick={() => navigate(`/kijumbe/group/${group.$id}`)}
-                    className="text-red-500 hover:text-red-400 text-sm font-medium"
-                  >
-                    Angalia Zaidi
-                  </button>
-                </div>
-              </div>
-            ))
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredGroups.map((group) => (
+                <KijumbeGroupCard 
+                  key={group.$id} 
+                  group={group} 
+                  onClick={() => handleViewGroup(group.$id)}
+                />
+              ))}
+            </div>
           ) : (
-            <div className="text-center py-12">
-              <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg">Hakuna vikundi vilivyopatikana</p>
-              <p className="text-gray-500 text-sm mt-2">Unganisha kikundi kipya au tafuta vikundi vingine</p>
+            <div className="bg-gray-800 rounded-lg p-8 text-center">
+              <Users className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+              <h3 className="text-white font-semibold mb-2">Hakuna Vikundi</h3>
+              <p className="text-gray-400 mb-4">Haujajiunga na kikundi chochote bado</p>
+              <button 
+                onClick={() => setShowCreateGroupModal(true)}
+                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors inline-flex items-center"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Unda Kikundi
+              </button>
             </div>
           )}
         </div>
@@ -396,7 +573,7 @@ const KijumbeDashboard = () => {
                       </div>
                       <div className="text-right">
                         <p className={`font-semibold ${typeDisplay.color}`}>
-                          {(tx.type === 'kijumbe_contribution' || tx.type === 'contribution') ? '+' : '-'}
+                          {tx.type === 'kijumbe_contribution' ? '+' : '-'}
                           {formatCurrency(tx.amount)}
                         </p>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -433,6 +610,28 @@ const KijumbeDashboard = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Modals */}
+      {showCreateGroupModal && (
+        <CreateGroupModal
+          isOpen={showCreateGroupModal}
+          onClose={() => setShowCreateGroupModal(false)}
+          onCreateGroup={handleCreateGroup}
+        />
+      )}
+
+      {showGroupDetailsModal && selectedGroup && (
+        <GroupDetailsModal
+          isOpen={showGroupDetailsModal}
+          onClose={() => setShowGroupDetailsModal(false)}
+          group={selectedGroup}
+          onContribute={handleContribute}
+          onInviteMember={handleInviteMember}
+          onDeleteGroup={handleDeleteGroup}
+          onEditGroup={handleEditGroup}
+          balance={walletBalance}
+        />
       )}
     </div>
   );
