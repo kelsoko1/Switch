@@ -64,8 +64,8 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Step 6: Set up Nginx
-echo -e "${YELLOW}Step 6: Setting up Nginx...${NC}"
+# Step 6: Set up Nginx (HTTP only first)
+echo -e "${YELLOW}Step 6: Setting up Nginx (HTTP only)...${NC}"
 cp kijumbesmart.conf /etc/nginx/sites-available/
 ln -sf /etc/nginx/sites-available/kijumbesmart.conf /etc/nginx/sites-enabled/
 nginx -t
@@ -79,8 +79,8 @@ systemctl restart nginx
 echo -e "${YELLOW}Step 7: Setting up SSL with Let's Encrypt...${NC}"
 certbot --nginx -d kijumbesmart.co.tz -d www.kijumbesmart.co.tz --non-interactive --agree-tos --email admin@kijumbesmart.co.tz
 if [ $? -ne 0 ]; then
-  echo -e "${RED}Failed to set up SSL certificates. Exiting.${NC}"
-  exit 1
+  echo -e "${YELLOW}Warning: Failed to set up SSL certificates automatically. Will continue without SSL.${NC}"
+  echo -e "${YELLOW}You can manually set up SSL later with: certbot --nginx -d kijumbesmart.co.tz -d www.kijumbesmart.co.tz${NC}"
 fi
 
 # Step 8: Set up cron jobs

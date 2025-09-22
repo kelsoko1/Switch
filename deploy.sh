@@ -47,8 +47,8 @@ cp kijumbesmart.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable kijumbesmart.service
 
-# Set up Nginx
-echo -e "${YELLOW}Setting up Nginx...${NC}"
+# Set up Nginx (HTTP only first)
+echo -e "${YELLOW}Setting up Nginx (HTTP only)...${NC}"
 cp kijumbesmart.conf /etc/nginx/sites-available/
 ln -sf /etc/nginx/sites-available/kijumbesmart.conf /etc/nginx/sites-enabled/
 nginx -t && systemctl restart nginx
@@ -56,6 +56,10 @@ nginx -t && systemctl restart nginx
 # Set up SSL with Let's Encrypt
 echo -e "${YELLOW}Setting up SSL with Let's Encrypt...${NC}"
 certbot --nginx -d kijumbesmart.co.tz -d www.kijumbesmart.co.tz --non-interactive --agree-tos --email admin@kijumbesmart.co.tz
+if [ $? -ne 0 ]; then
+  echo -e "${YELLOW}Warning: Failed to set up SSL certificates automatically. Will continue without SSL.${NC}"
+  echo -e "${YELLOW}You can manually set up SSL later with: certbot --nginx -d kijumbesmart.co.tz -d www.kijumbesmart.co.tz${NC}"
+fi
 
 # Final restart
 echo -e "${YELLOW}Restarting services...${NC}"

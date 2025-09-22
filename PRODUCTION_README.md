@@ -138,7 +138,37 @@ Backups are stored in `/var/backups/kijumbesmart` and are automatically created 
 
 ## Troubleshooting
 
-If the application is not running:
+### Quick Fix
+
+If you encounter issues during deployment, use the quick-fix script:
+
+```bash
+sudo ./quick-fix.sh
+```
+
+This script will:
+1. Reset the Nginx configuration to HTTP only
+2. Ensure the application is running on port 2025
+3. Update environment files
+4. Restart all services
+
+### SSL Setup
+
+If you need to set up SSL after the application is running:
+
+```bash
+sudo ./setup-ssl.sh
+```
+
+### Nginx Configuration
+
+If you need to fix the Nginx configuration:
+
+```bash
+sudo ./fix-nginx.sh
+```
+
+### Common Troubleshooting Commands
 
 1. Check the PM2 status:
    ```bash
@@ -164,6 +194,10 @@ If the application is not running:
    ```bash
    ./health-check.sh
    ```
+
+### Detailed Troubleshooting Guide
+
+For more detailed troubleshooting information, refer to [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ## Security Considerations
 
