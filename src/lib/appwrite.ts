@@ -22,7 +22,7 @@ const services = {
 } as const;
 
 // Collection IDs
-export const COLLECTIONS = {
+const COLLECTIONS = {
     USERS: 'users',
     GROUPS: 'groups',
     MEMBERS: 'members',
@@ -38,13 +38,13 @@ export const COLLECTIONS = {
 } as const;
 
 // Storage bucket IDs
-export const BUCKETS = {
+const BUCKETS = {
     AVATARS: 'avatars',
     DOCUMENTS: 'documents'
 } as const;
 
 // Authentication Service
-export const auth = {
+const auth = {
     // Get current user
     async getCurrentUser(): Promise<Models.User<Models.Preferences> | null> {
         try {
@@ -126,7 +126,7 @@ export const auth = {
 };
 
 // Database Service
-export const database = {
+const database = {
     // Create document
     async createDocument<T extends object>(
         collectionId: string,
@@ -219,7 +219,7 @@ export const database = {
 };
 
 // Storage Service
-export const storage = {
+const storage = {
     // Upload file
     async uploadFile(
         bucketId: string,
@@ -256,4 +256,14 @@ export const storage = {
     }
 };
 
-export { client, services };
+export {
+    client,
+    services,
+    auth,
+    database,
+    storage,
+    COLLECTIONS,
+    BUCKETS
+};
+
+export default client;
