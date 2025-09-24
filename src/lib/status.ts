@@ -1,235 +1,229 @@
-import { db, auth } from './appwrite';
+import { database, services } from './appwrite';
 import { COLLECTIONS } from './constants';
+import { Models } from 'appwrite';
 
 export interface StatusUpdate {
   id: string;
   user_id: string;
-  type: 'photo' | 'video' | 'text';
   content: string;
-  caption?: string;
-  background?: string; // For text statuses
+  type: 'text' | 'image' | 'video';
+  url?: string;
+  likes: number;
+  comments: number;
   created_at: string;
-  expires_at: string;
-  views?: StatusView[];
-  user?: {
-    id: string;
-    email: string;
-  };
+  updated_at: string;
 }
 
-export interface StatusView {
-  id: string;
-  status_id: string;
-  viewer_id: string;
-  viewed_at: string;
+interface AppwriteStatus extends Models.Document {
+  user_id: string;
+  content: string;
+  type: 'text' | 'image' | 'video';
+  url?: string;
+  likes: number;
+  comments: number;
 }
 
-export class StatusManager {
-  async getRecentStatuses(): Promise<StatusUpdate[]> {
+export class StatusService {
+  /**
+   * Get a status by ID
+   */
+  async getStatusById(id: string): Promise<StatusUpdate | null> {
     try {
-      // Check if Appwrite is properly configured
-      const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'demo-project';
-      if (APPWRITE_PROJECT_ID === 'demo-project') {
-        console.warn('Appwrite not configured, returning empty statuses');
-        return [];
-      }
+      const response = await database.getDocument(COLLECTIONS.STATUS_UPDATES, id) as AppwriteStatus;
+      return {
+        id: response.$id,
+        user_id: response.user_id,
+        content: response.content,
+        type: response.type,
+        url: response.url,
+        likes: response.likes,
+        comments: response.comments,
+        created_at: response.$createdAt,
+        updated_at: response.$updatedAt
+      };
+    } catch (error) {
+      console.error('Error getting status:', error);
+      return null;
+    }
+  }
 
+  /**
+   * Get recent status updates
+   */
+  async getRecentUpdates(): Promise<StatusUpdate[]> {
+    try {
       // Get status updates from the last 24 hours
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const result = await db.listDocuments(COLLECTIONS.STATUS_UPDATES, [
+      const response = await database.listDocuments(COLLECTIONS.STATUS_UPDATES, [
         `created_at>=${yesterday}`,
         'orderDesc(created_at)',
         'limit(50)'
       ]);
 
-      // For each status, fetch the user separately
-      const statusesWithUsers = await Promise.all(
-        result.documents.map(async (status) => {
-          try {
-            const userResult = await db.getDocument(COLLECTIONS.USERS, status.user_id);
-            return {
-              id: status.$id,
-              user_id: status.user_id,
-              type: status.type,
-              content: status.content,
-              caption: status.caption,
-              background: status.background,
-              created_at: status.created_at,
-              expires_at: status.expires_at,
-              views: status.views || [],
-              user: { id: userResult.$id, email: userResult.email }
-            } as StatusUpdate;
-          } catch (userError) {
-            console.warn('Could not fetch user for status:', userError);
-            return {
-              id: status.$id,
-              user_id: status.user_id,
-              type: status.type,
-              content: status.content,
-              caption: status.caption,
-              background: status.background,
-              created_at: status.created_at,
-              expires_at: status.expires_at,
-              views: status.views || [],
-              user: undefined
-            } as StatusUpdate;
-          }
-        })
-      );
-
-      return statusesWithUsers;
+      return response.documents.map((status: AppwriteStatus) => ({
+        id: status.$id,
+        user_id: status.user_id,
+        content: status.content,
+        type: status.type,
+        url: status.url,
+        likes: status.likes,
+        comments: status.comments,
+        created_at: status.$createdAt,
+        updated_at: status.$updatedAt
+      }));
     } catch (error) {
-      console.error('Error fetching statuses:', error);
+      console.error('Error getting recent status updates:', error);
       return [];
     }
   }
 
-  async createStatus(type: StatusUpdate['type'], content: string, caption?: string): Promise<StatusUpdate> {
+  /**
+   * Create a new status update
+   */
+  async createStatus(content: string, type: 'text' | 'image' | 'video' = 'text', url?: string): Promise<StatusUpdate | null> {
     try {
-      // Check if Appwrite is properly configured
-      const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'demo-project';
-      if (APPWRITE_PROJECT_ID === 'demo-project') {
-        throw new Error('Appwrite not configured');
-      }
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
 
-      const currentUser = await auth.getCurrentUser();
-      if (!currentUser) {
-        throw new Error('Not authenticated');
-      }
-
-      const statusId = `status_${currentUser.$id}_${Date.now()}`;
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
-
-      const statusData = {
-        user_id: currentUser.$id,
-        type,
+      const response = await database.createDocument(COLLECTIONS.STATUS_UPDATES, {
+        user_id: account.$id,
         content,
-        caption,
-        expires_at: expiresAt,
-        created_at: new Date().toISOString(),
-      };
-
-      const result = await db.createDocument(
-        COLLECTIONS.STATUS_UPDATES,
-        statusId,
-        statusData,
-        [`read("user:${currentUser.$id}")`, `write("user:${currentUser.$id}")`]
-      );
-
-      // Map the result to the StatusUpdate type
-      return {
-        id: result.$id,
-        user_id: currentUser.$id,
         type,
-        content,
-        caption,
-        created_at: result.created_at || new Date().toISOString(),
-        expires_at: expiresAt,
-        views: [],
-        user: { id: currentUser.$id, email: currentUser.email }
-      };
-    } catch (error) {
-      console.error('Error creating status:', error);
-      throw error;
-    }
-  }
+        url,
+        likes: 0,
+        comments: 0
+      }) as AppwriteStatus;
 
-  async createTextStatus(text: string, background: string, caption?: string): Promise<StatusUpdate> {
-    try {
-      // Check if Appwrite is properly configured
-      const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'demo-project';
-      if (APPWRITE_PROJECT_ID === 'demo-project') {
-        throw new Error('Appwrite not configured');
-      }
-
-      const currentUser = await auth.getCurrentUser();
-      if (!currentUser) {
-        throw new Error('Not authenticated');
-      }
-
-      const statusId = `status_${currentUser.$id}_${Date.now()}`;
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
-
-      const statusData = {
-        user_id: currentUser.$id,
-        type: 'text' as const,
-        content: text,
-        caption,
-        background,
-        expires_at: expiresAt,
-        created_at: new Date().toISOString(),
-      };
-
-      const result = await db.createDocument(
-        COLLECTIONS.STATUS_UPDATES,
-        statusId,
-        statusData,
-        [`read("user:${currentUser.$id}")`, `write("user:${currentUser.$id}")`]
-      );
-
-      // Map the result to the StatusUpdate type
       return {
-        id: result.$id,
-        user_id: currentUser.$id,
-        type: 'text',
-        content: text,
-        caption,
-        background,
-        created_at: result.created_at || new Date().toISOString(),
-        expires_at: expiresAt,
-        views: [],
-        user: { id: currentUser.$id, email: currentUser.email }
+        id: response.$id,
+        user_id: account.$id,
+        content,
+        type,
+        url,
+        likes: 0,
+        comments: 0,
+        created_at: response.$createdAt,
+        updated_at: response.$updatedAt
       };
     } catch (error) {
-      console.error('Error creating text status:', error);
-      throw error;
+      console.error('Error creating status update:', error);
+      return null;
     }
   }
 
-  async viewStatus(statusId: string): Promise<void> {
+  /**
+   * Update a status
+   */
+  async updateStatus(id: string, content: string): Promise<StatusUpdate | null> {
     try {
-      // Check if Appwrite is properly configured
-      const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'demo-project';
-      if (APPWRITE_PROJECT_ID === 'demo-project') {
-        throw new Error('Appwrite not configured');
-      }
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
 
-      const currentUser = await auth.getCurrentUser();
-      if (!currentUser) {
-        throw new Error('Not authenticated');
-      }
+      const response = await database.updateDocument(COLLECTIONS.STATUS_UPDATES, id, {
+        content,
+        updated_at: new Date().toISOString()
+      }) as AppwriteStatus;
 
-      const viewId = `view_${currentUser.$id}_${statusId}_${Date.now()}`;
-      const viewData = {
-        status_id: statusId,
-        viewer_id: currentUser.$id,
-        viewed_at: new Date().toISOString(),
+      return {
+        id: response.$id,
+        user_id: response.user_id,
+        content: response.content,
+        type: response.type,
+        url: response.url,
+        likes: response.likes,
+        comments: response.comments,
+        created_at: response.$createdAt,
+        updated_at: response.$updatedAt
       };
-
-      await db.createDocument(
-        COLLECTIONS.STATUS_VIEWS,
-        viewId,
-        viewData,
-        [`read("user:${currentUser.$id}")`, `write("user:${currentUser.$id}")`]
-      );
     } catch (error) {
-      console.error('Error viewing status:', error);
-      throw error;
+      console.error('Error updating status:', error);
+      return null;
     }
   }
 
-  async deleteStatus(statusId: string): Promise<void> {
+  /**
+   * Delete a status
+   */
+  async deleteStatus(id: string): Promise<boolean> {
     try {
-      // Check if Appwrite is properly configured
-      const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'demo-project';
-      if (APPWRITE_PROJECT_ID === 'demo-project') {
-        throw new Error('Appwrite not configured');
-      }
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
 
-      await db.deleteDocument(COLLECTIONS.STATUS_UPDATES, statusId);
+      await database.deleteDocument(COLLECTIONS.STATUS_UPDATES, id);
+      return true;
     } catch (error) {
       console.error('Error deleting status:', error);
-      throw error;
+      return false;
+    }
+  }
+
+  /**
+   * Like a status
+   */
+  async likeStatus(id: string): Promise<boolean> {
+    try {
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
+
+      // Check if already liked
+      const existingLike = await database.listDocuments(COLLECTIONS.STATUS_LIKES, [
+        `user_id=${account.$id}`,
+        `status_id=${id}`
+      ]);
+
+      if (existingLike.total > 0) {
+        return false;
+      }
+
+      // Create like
+      await database.createDocument(COLLECTIONS.STATUS_LIKES, {
+        status_id: id,
+        user_id: account.$id
+      });
+
+      // Increment likes count
+      await database.updateDocument(COLLECTIONS.STATUS_UPDATES, id, {
+        likes: '+1'
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error liking status:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Unlike a status
+   */
+  async unlikeStatus(id: string): Promise<boolean> {
+    try {
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
+
+      // Find and delete like
+      const existingLike = await database.listDocuments(COLLECTIONS.STATUS_LIKES, [
+        `user_id=${account.$id}`,
+        `status_id=${id}`
+      ]);
+
+      if (existingLike.total === 0) {
+        return false;
+      }
+
+      await database.deleteDocument(COLLECTIONS.STATUS_LIKES, existingLike.documents[0].$id);
+
+      // Decrement likes count
+      await database.updateDocument(COLLECTIONS.STATUS_UPDATES, id, {
+        likes: '-1'
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error unliking status:', error);
+      return false;
     }
   }
 }
+
+export const statusService = new StatusService();

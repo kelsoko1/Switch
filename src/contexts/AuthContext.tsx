@@ -1,12 +1,18 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { appwrite } from '../lib/appwrite';
+import { services } from '../lib/appwrite';
 import { userService } from '../services/appwrite';
+import { Models } from 'appwrite';
+
+interface CustomPreferences extends Models.Preferences {
+  avatar_url?: string;
+}
 
 interface User {
   $id: string;
   name: string;
   email: string;
   avatar?: string;
+  prefs?: CustomPreferences;
 }
 
 interface LoginResult {
@@ -33,15 +39,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const checkAuth = async () => {
       try {
         // First, try to get the current account
-        const account = await appwrite.getAccount();
+        const account = await services.account.get() as Models.User<CustomPreferences>;
         
         if (account) {
-          console.log('✅ User authenticated:', account.email);
+          console.log(' User authenticated:', account.email);
           setUser({
             $id: account.$id,
             name: account.name,
             email: account.email,
-            avatar: account.prefs?.avatar,
+            avatar: account.prefs?.avatar_url || '',
+            prefs: account.prefs
           });
         } else {
           console.log('No active session, user is not authenticated');
@@ -52,7 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Create anonymous session as fallback
         try {
           console.log('Attempting to create anonymous session...');
-          await appwrite.createAnonymousSession();
+          await services.account.createAnonymousSession();
           console.log('Anonymous session created successfully');
         } catch (anonError) {
           console.error('Failed to create anonymous session:', anonError);
@@ -77,7 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // First, check if we're already logged in
       try {
-        const existingAccount = await appwrite.getAccount();
+        const existingAccount = await services.account.get();
         if (existingAccount && existingAccount.email === email) {
           // We're already logged in as this user
           console.log('Already logged in as this user');
@@ -91,7 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else if (existingAccount) {
           console.log('Logged in as different user, logging out first');
           // Log out the existing session first
-          await appwrite.deleteSessions();
+          await services.account.deleteSessions();
         }
       } catch (e) {
         // No existing session, continue with login
@@ -158,12 +165,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log('Attempting to register new account for:', email);
       
       // Create the account
-      const account = await appwrite.createAccount(email, password, name);
-      console.log('Account created successfully:', account.$id);
+      await services.account.create('unique()', email, password, name);
+      console.log('Account created successfully');
       
       // Log the user in
-      console.log('Logging in with new account...');
-      return await login(email, password);
+      await services.account.createSession(email, password);
+      const user = await services.account.get() as Models.User<CustomPreferences>;
+      setUser({
+        $id: user.$id,
+        name: user.name,
+        email: user.email,
+        avatar: user.prefs?.avatar_url || '',
+        prefs: user.prefs
+      });
+      return { success: true };
     } catch (error: any) {
       console.error('Registration error:', error);
       
@@ -206,7 +221,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
-      await appwrite.deleteSessions();
+      await services.account.deleteSessions();
     } catch (error) {
       console.error('Error during logout:', error);
       // Continue with logout even if there's an error

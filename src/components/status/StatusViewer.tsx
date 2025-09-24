@@ -1,199 +1,179 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { statusService, Status } from '../../services/statusService';
+import { statusViewService, StatusView } from '../../services/statusService';
 
 interface StatusViewerProps {
-  statuses: Status[];
+  statuses: StatusView[];
   initialIndex: number;
   onClose: () => void;
 }
 
-const StatusViewer: React.FC<StatusViewerProps> = ({ statuses, initialIndex, onClose }) => {
+const StatusViewer: React.FC<StatusViewerProps> = ({
+  statuses,
+  initialIndex,
+  onClose,
+}) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [progress, setProgress] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const statusDuration = 5000; // 5 seconds per status
-  const currentStatus = statuses[currentIndex];
+  const [currentStatus, setCurrentStatus] = useState<StatusView | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Mark status as viewed when it's opened
   useEffect(() => {
-    if (currentStatus && !currentStatus.isMine) {
-      statusService.viewStatus(currentStatus.id);
-    }
-  }, [currentStatus]);
+    const loadStatus = async () => {
+      setIsLoading(true);
+      setError(null);
 
-  // Handle progress bar
-  useEffect(() => {
-    setProgress(0);
-    
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-    }
-    
-    progressIntervalRef.current = setInterval(() => {
-      if (!isPaused) {
-        setProgress(prev => {
-          const newProgress = prev + (100 / (statusDuration / 100));
-          
-          if (newProgress >= 100) {
-            // Move to next status when progress reaches 100%
-            if (currentIndex < statuses.length - 1) {
-              setCurrentIndex(prev => prev + 1);
-              return 0;
-            } else {
-              // Close viewer when we've gone through all statuses
-              onClose();
-              return 100;
-            }
-          }
-          
-          return newProgress;
-        });
-      }
-    }, 100);
-    
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
+      try {
+        const statusId = statuses[currentIndex].id;
+        const status = await statusViewService.getStatusById(statusId);
+        if (!status) {
+          throw new Error('Status not found');
+        }
+        setCurrentStatus(status);
+      } catch (err) {
+        console.error('Error loading status:', err);
+        setError('Failed to load status');
+      } finally {
+        setIsLoading(false);
       }
     };
-  }, [currentIndex, isPaused, onClose, statuses.length]);
 
-  const handlePrevStatus = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
-      setProgress(0);
-    }
-  };
+    loadStatus();
+  }, [currentIndex, statuses]);
 
-  const handleNextStatus = () => {
+  const handleNext = () => {
     if (currentIndex < statuses.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-      setProgress(0);
-    } else {
-      onClose();
+      setCurrentIndex(currentIndex + 1);
     }
   };
 
-  const handleMouseDown = () => {
-    setIsPaused(true);
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
   };
 
-  const handleMouseUp = () => {
-    setIsPaused(false);
-  };
-
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        handlePrevStatus();
-      } else if (e.key === 'ArrowRight' || e.key === ' ') {
-        handleNextStatus();
-      } else if (e.key === 'Escape') {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    switch (e.key) {
+      case 'ArrowLeft':
+        handlePrevious();
+        break;
+      case 'ArrowRight':
+        handleNext();
+        break;
+      case 'Escape':
         onClose();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [onClose]);
+        break;
+      default:
+        break;
+    }
+  };
 
-  if (!currentStatus) return null;
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentIndex]);
+
+  if (!currentStatus || isLoading) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center">
+        <div className="text-white">{error}</div>
+      </div>
+    );
+  }
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center"
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onTouchStart={handleMouseDown}
-      onTouchEnd={handleMouseUp}
+    <div
+      ref={containerRef}
+      className="fixed inset-0 bg-black flex items-center justify-center"
     >
       {/* Close button */}
-      <button 
+      <button
         onClick={onClose}
         className="absolute top-4 right-4 text-white z-10"
       >
-        <X size={24} />
+        <X className="w-6 h-6" />
       </button>
-      
-      {/* Progress bars */}
-      <div className="absolute top-4 left-4 right-4 flex gap-1">
-        {statuses.map((_, index) => (
-          <div 
-            key={index} 
-            className="h-1 bg-gray-500/50 flex-1 rounded-full overflow-hidden"
-          >
-            <div 
-              className={`h-full bg-white ${index === currentIndex ? 'transition-all duration-100 ease-linear' : index < currentIndex ? 'w-full' : 'w-0'}`}
-              style={{ width: index === currentIndex ? `${progress}%` : index < currentIndex ? '100%' : '0%' }}
-            />
-          </div>
-        ))}
-      </div>
-      
-      {/* User info */}
-      <div className="absolute top-8 left-4 flex items-center gap-3 text-white">
-        <img 
-          src={currentStatus.avatar || `https://ui-avatars.com/api/?name=${currentStatus.username}&background=random`}
-          alt={currentStatus.username}
-          className="w-10 h-10 rounded-full object-cover"
-        />
-        <div>
-          <p className="font-medium">{currentStatus.username}</p>
-          <p className="text-xs opacity-75">
-            {new Date(currentStatus.createdAt).toLocaleString()}
-          </p>
-        </div>
-      </div>
-      
+
       {/* Navigation buttons */}
-      <button 
-        onClick={handlePrevStatus}
-        disabled={currentIndex === 0}
-        className="absolute left-4 top-1/2 -translate-y-1/2 text-white/75 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-      >
-        <ChevronLeft size={36} />
-      </button>
-      
-      <button 
-        onClick={handleNextStatus}
-        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/75 hover:text-white"
-      >
-        <ChevronRight size={36} />
-      </button>
-      
+      {currentIndex > 0 && (
+        <button
+          onClick={handlePrevious}
+          className="absolute left-4 text-white z-10"
+        >
+          <ChevronLeft className="w-8 h-8" />
+        </button>
+      )}
+      {currentIndex < statuses.length - 1 && (
+        <button
+          onClick={handleNext}
+          className="absolute right-4 text-white z-10"
+        >
+          <ChevronRight className="w-8 h-8" />
+        </button>
+      )}
+
       {/* Status content */}
-      <div className="max-w-md w-full max-h-[80vh] flex flex-col items-center justify-center">
-        {currentStatus.type === 'photo' ? (
-          <img 
-            src={currentStatus.mediaUrl} 
-            alt="Status"
-            className="max-w-full max-h-[70vh] object-contain rounded-lg"
-          />
-        ) : currentStatus.type === 'video' ? (
-          <video 
-            src={currentStatus.mediaUrl}
-            className="max-w-full max-h-[70vh] object-contain rounded-lg"
-            autoPlay
-            loop
-            muted
-            playsInline
-          />
-        ) : (
-          <div className="bg-gradient-to-br from-purple-600 to-blue-500 p-8 rounded-lg w-full max-w-sm">
-            <p className="text-white text-xl font-medium">{currentStatus.mediaUrl}</p>
+      <div className="w-full max-w-lg">
+        {/* User info */}
+        <div className="flex items-center mb-4 text-white">
+          {currentStatus.user.avatar ? (
+            <img
+              src={currentStatus.user.avatar}
+              alt={currentStatus.user.name}
+              className="w-10 h-10 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center">
+              <span className="text-lg">
+                {currentStatus.user.name[0].toUpperCase()}
+              </span>
+            </div>
+          )}
+          <div className="ml-3">
+            <div className="font-semibold">{currentStatus.user.name}</div>
+            <div className="text-sm text-gray-300">{currentStatus.user.email}</div>
           </div>
+        </div>
+
+        {/* Media content */}
+        {currentStatus.type === 'image' && currentStatus.url && (
+          <img
+            src={currentStatus.url}
+            alt={currentStatus.content}
+            className="w-full h-auto rounded-lg"
+          />
         )}
-        
-        {currentStatus.caption && (
-          <div className="mt-4 bg-white/10 backdrop-blur-sm p-4 rounded-lg w-full">
-            <p className="text-white">{currentStatus.caption}</p>
-          </div>
+        {currentStatus.type === 'video' && currentStatus.url && (
+          <video
+            src={currentStatus.url}
+            controls
+            className="w-full h-auto rounded-lg"
+          />
         )}
+
+        {/* Text content */}
+        <div className="mt-4 text-white">{currentStatus.content}</div>
+
+        {/* Status info */}
+        <div className="mt-4 text-sm text-gray-400">
+          <span>{new Date(currentStatus.created_at).toLocaleString()}</span>
+          <span className="mx-2">•</span>
+          <span>{currentStatus.likes} likes</span>
+          <span className="mx-2">•</span>
+          <span>{currentStatus.comments} comments</span>
+        </div>
       </div>
     </div>
   );

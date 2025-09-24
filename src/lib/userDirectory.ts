@@ -1,5 +1,18 @@
-import { appwrite } from './appwrite';
-import { COLLECTIONS } from './appwrite';
+import { Models, Query } from 'appwrite';
+import { database, COLLECTIONS } from './appwrite';
+
+type AppwriteUser = Models.Document & {
+  name?: string;
+  email?: string;
+  avatar?: string;
+};
+
+type AppwriteGroup = Models.Document & {
+  members: string[];
+  type: string;
+  name?: string;
+  avatar?: string;
+};
 
 export interface AppUser {
   id: string;
@@ -10,35 +23,36 @@ export interface AppUser {
   isContact?: boolean;
 }
 
-// Cache for users to prevent frequent reloading
-let usersCache: AppUser[] = [];
+// Cache
+let usersCache: AppUser[] | null = null;
 let lastFetchTime = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export class UserDirectoryManager {
   /**
-   * Get all users registered in the system
-   * @param forceRefresh - Whether to force a refresh from the server
-   * @returns List of users
+   * Get all users
+   * @param forceRefresh Force refresh from server
    */
   async getAllUsers(forceRefresh = false): Promise<AppUser[]> {
     const now = Date.now();
     
     // Return cached users if available and not expired
-    if (!forceRefresh && usersCache.length > 0 && (now - lastFetchTime) < CACHE_DURATION) {
+    if (!forceRefresh && usersCache && usersCache.length > 0 && (now - lastFetchTime) < CACHE_TTL) {
       return [...usersCache];
     }
     
     try {
-      const result = await appwrite.listDocuments(COLLECTIONS.USERS, [
-        'limit(100)'
-      ]);
+      const response = await database.listDocuments(COLLECTIONS.USERS);
       
-      usersCache = result.documents.map(doc => ({
+      if (response.total === 0) {
+        return [];
+      }
+
+      usersCache = response.documents.map((doc: Models.Document) => ({
         id: doc.$id,
-        name: doc.name || 'Unknown User',
-        email: doc.email || '',
-        avatar: doc.avatar,
+        name: (doc as AppwriteUser).name || 'Unknown User',
+        email: (doc as AppwriteUser).email || '',
+        avatar: (doc as AppwriteUser).avatar,
         createdAt: doc.$createdAt
       }));
       
@@ -46,17 +60,15 @@ export class UserDirectoryManager {
       return [...usersCache];
     } catch (error) {
       console.error('Error fetching users:', error);
-      return usersCache.length > 0 ? [...usersCache] : [];
+      return usersCache ? [...usersCache] : [];
     }
   }
   
   /**
-   * Search for users by name or email
-   * @param query - Search query
-   * @returns List of matching users
+   * Search users by name or email
    */
   async searchUsers(query: string): Promise<AppUser[]> {
-    if (!query || query.trim().length < 2) {
+    if (!query) {
       return [];
     }
     
@@ -64,30 +76,28 @@ export class UserDirectoryManager {
       const normalizedQuery = query.toLowerCase().trim();
       
       // Try to use cache first
-      if (usersCache.length > 0) {
+      if (usersCache && usersCache.length > 0) {
         return usersCache.filter(user => 
           user.name.toLowerCase().includes(normalizedQuery) || 
           user.email.toLowerCase().includes(normalizedQuery)
         );
       }
       
-      // If no cache, fetch from server
-      const result = await appwrite.listDocuments(COLLECTIONS.USERS, []);
+      const response = await database.listDocuments(COLLECTIONS.USERS);
       
-      const matchingUsers = result.documents
-        .filter(doc => 
-          (doc.name && doc.name.toLowerCase().includes(normalizedQuery)) || 
-          (doc.email && doc.email.toLowerCase().includes(normalizedQuery))
-        )
-        .map(doc => ({
+      return response.documents
+        .filter((doc) => {
+          const userDoc = doc as AppwriteUser;
+          return (userDoc.name && userDoc.name.toLowerCase().includes(normalizedQuery)) || 
+                 (userDoc.email && userDoc.email.toLowerCase().includes(normalizedQuery));
+        })
+        .map((doc) => ({
           id: doc.$id,
-          name: doc.name || 'Unknown User',
-          email: doc.email || '',
-          avatar: doc.avatar,
+          name: (doc as AppwriteUser).name || 'Unknown User',
+          email: (doc as AppwriteUser).email || '',
+          avatar: (doc as AppwriteUser).avatar,
           createdAt: doc.$createdAt
         }));
-      
-      return matchingUsers;
     } catch (error) {
       console.error('Error searching users:', error);
       return [];
@@ -95,26 +105,24 @@ export class UserDirectoryManager {
   }
   
   /**
-   * Get a specific user by ID
-   * @param userId - User ID
-   * @returns User object or null if not found
+   * Get user by ID
    */
   async getUserById(userId: string): Promise<AppUser | null> {
     // Check cache first
-    const cachedUser = usersCache.find(user => user.id === userId);
+    const cachedUser = usersCache && usersCache.find(user => user.id === userId);
     if (cachedUser) {
       return { ...cachedUser };
     }
     
     try {
-      const user = await appwrite.getDocument(COLLECTIONS.USERS, userId);
+      const doc = await database.getDocument(COLLECTIONS.USERS, userId) as AppwriteUser;
       
       return {
-        id: user.$id,
-        name: user.name || 'Unknown User',
-        email: user.email || '',
-        avatar: user.avatar,
-        createdAt: user.$createdAt
+        id: doc.$id,
+        name: doc.name || 'Unknown User',
+        email: doc.email || '',
+        avatar: doc.avatar,
+        createdAt: doc.$createdAt
       };
     } catch (error) {
       console.error(`Error fetching user ${userId}:`, error);
@@ -123,31 +131,24 @@ export class UserDirectoryManager {
   }
   
   /**
-   * Mark users that are already contacts
-   * @param users - List of users
-   * @param currentUserId - Current user ID
-   * @returns List of users with isContact flag
+   * Mark users that are contacts of the current user
    */
   async markContacts(users: AppUser[], currentUserId: string): Promise<AppUser[]> {
     try {
       // Get all direct chats for the current user
-      const directChatsResponse = await appwrite.listDocuments(COLLECTIONS.GROUPS, [
-        `members.contains('${currentUserId}')`,
-        `type=direct`
+      const directChatsResponse = await database.listDocuments(COLLECTIONS.GROUPS, [
+        Query.equal('type', 'direct'),
+        Query.search('members', currentUserId)
       ]);
-      
-      // Extract contact user IDs
-      const contactIds = new Set<string>();
-      
-      directChatsResponse.documents.forEach(doc => {
-        const members = doc.members || [];
-        members.forEach((memberId: string) => {
-          if (memberId !== currentUserId) {
-            contactIds.add(memberId);
-          }
-        });
-      });
-      
+
+      // Create a map of contact IDs
+      const contactIds = new Set(
+        directChatsResponse.documents
+          .filter((chat: Models.Document) => (chat as AppwriteGroup).members && (chat as AppwriteGroup).members.length === 2)
+          .map((chat: Models.Document) => (chat as AppwriteGroup).members.find(id => id !== currentUserId))
+          .filter(Boolean)
+      );
+
       // Mark contacts in the users list
       return users.map(user => ({
         ...user,
@@ -158,15 +159,14 @@ export class UserDirectoryManager {
       return users;
     }
   }
-  
+
   /**
    * Clear the users cache
    */
-  clearCache() {
-    usersCache = [];
+  clearCache(): void {
+    usersCache = null;
     lastFetchTime = 0;
   }
 }
 
-// Create a singleton instance
-export const userDirectoryManager = new UserDirectoryManager();
+export const userDirectory = new UserDirectoryManager();

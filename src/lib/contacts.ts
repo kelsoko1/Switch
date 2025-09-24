@@ -1,5 +1,20 @@
-import { appwrite } from './appwrite';
-import { COLLECTIONS } from './appwrite';
+import { Models, Query } from 'appwrite';
+import { database, COLLECTIONS } from './appwrite';
+
+type AppwriteUser = Models.Document & {
+  name?: string;
+  email?: string;
+  avatar?: string;
+};
+
+type AppwriteGroup = Models.Document & {
+  members: string[];
+  type: string;
+  name?: string;
+  avatar?: string;
+  lastMessage?: string;
+  lastMessageTime?: string;
+};
 
 export interface Contact {
   id: string;
@@ -27,15 +42,18 @@ export class ContactManager {
   async addContact(userId: string, contactEmail: string): Promise<Contact> {
     try {
       // First check if the contact exists in the system
-      const usersResult = await appwrite.listDocuments(COLLECTIONS.USERS, [
-        `email=${contactEmail.trim().toLowerCase()}`
+      const usersResult = await database.listDocuments(COLLECTIONS.USERS, [
+        Query.equal('email', contactEmail.trim().toLowerCase())
       ]);
+
+
       
-      if (usersResult.documents.length === 0) {
+      const foundUsers = usersResult.documents as AppwriteUser[];
+      if (foundUsers.length === 0) {
         throw new Error('User not found. Please invite them to join Switch.');
       }
       
-      const contactUser = usersResult.documents[0];
+      const contactUser = foundUsers[0];
       
       // Don't allow adding yourself
       if (contactUser.$id === userId) {
@@ -43,18 +61,21 @@ export class ContactManager {
       }
       
       // Check if contact already exists
-      const contactsResult = await appwrite.listDocuments(COLLECTIONS.GROUPS, [
-        `type=direct`,
-        `members.contains('${userId}')`,
-        `members.contains('${contactUser.$id}')`
+      const contactsResult = await database.listDocuments(COLLECTIONS.GROUPS, [
+        Query.equal('type', 'direct'),
+        Query.search('members', userId),
+        Query.search('members', contactUser.$id)
       ]);
+
+
       
-      if (contactsResult.documents.length > 0) {
+      const existingGroups = contactsResult.documents as AppwriteGroup[];
+      if (existingGroups.length > 0) {
         throw new Error('This contact is already in your list.');
       }
       
       // Get current user details
-      const currentUser = await appwrite.getDocument(COLLECTIONS.USERS, userId);
+      const currentUser = await database.getDocument(COLLECTIONS.USERS, userId) as AppwriteUser;
       
       // Create a direct chat group (which serves as a contact)
       const groupData = {
@@ -66,7 +87,7 @@ export class ContactManager {
         updated_at: new Date().toISOString(),
       };
       
-      const createdGroup = await appwrite.createDocument(COLLECTIONS.GROUPS, groupData);
+      const createdGroup = await database.createDocument(COLLECTIONS.GROUPS, groupData) as AppwriteGroup;
       
       // Clear the contacts cache for this user
       this.clearUserCache(userId);
@@ -106,12 +127,14 @@ export class ContactManager {
     
     try {
       // Get all direct chat groups for the user
-      const directChatsResponse = await appwrite.listDocuments(COLLECTIONS.GROUPS, [
-        `members.contains('${userId}')`,
-        `type=direct`
+      const directChatsResponse = await database.listDocuments(COLLECTIONS.GROUPS, [
+        Query.equal('type', 'direct'),
+        Query.search('members', userId)
       ]);
+
+
       
-      const contacts = await Promise.all(directChatsResponse.documents.map(async (doc) => {
+      const contacts = await Promise.all((directChatsResponse.documents as AppwriteGroup[]).map(async (doc) => {
         // Find the other user in the direct chat
         const contactId = doc.members.find((id: string) => id !== userId);
         let contactName = 'Unknown Contact';
@@ -121,9 +144,9 @@ export class ContactManager {
         // Get the other user's details
         if (contactId) {
           try {
-            const contactUser = await appwrite.getDocument(COLLECTIONS.USERS, contactId);
-            contactName = contactUser.name || 'Unknown Contact';
-            contactEmail = contactUser.email || '';
+            const contactUser = await database.getDocument(COLLECTIONS.USERS, contactId) as AppwriteUser;
+            contactName = contactUser.name?.toString() || 'Unknown Contact';
+            contactEmail = contactUser.email?.toString() || '';
             contactAvatar = contactUser.avatar;
           } catch (error) {
             console.error('Error fetching contact details:', error);

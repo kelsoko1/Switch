@@ -1,31 +1,37 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, db, COLLECTIONS } from '../lib/appwrite';
+import { services, database, COLLECTIONS } from '../lib/appwrite';
+import { Models } from 'appwrite';
 
-interface AppwriteUser {
-  $id: string;
-  $createdAt?: string;
-  $updatedAt?: string;
-  created?: string;
+interface AppwriteUser extends Models.Document {
   name: string;
   email: string;
-  emailVerification: boolean;
-  phoneVerification?: boolean;
-  prefs: Record<string, any>;
-  accessedAt?: string;
+  phone?: string;
+  avatar?: string;
+  preferences: {
+    theme: 'light' | 'dark' | 'system';
+    language: 'en' | 'sw';
+    textSize: 'small' | 'medium' | 'large';
+    emailNotifications: boolean;
+    pushNotifications: boolean;
+    transactionAlerts: boolean;
+    securityAlerts: boolean;
+    marketingEmails: boolean;
+  };
 }
 
 interface AppwriteContextType {
   user: AppwriteUser | null;
-  loading: boolean;
-  isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  isLoading: boolean;
+  error: string | null;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateUser: (userData: Partial<AppwriteUser>) => Promise<void>;
-  refreshUser: () => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
+  updateProfile: (data: Partial<AppwriteUser>) => Promise<void>;
+  updatePreferences: (preferences: Partial<AppwriteUser['preferences']>) => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
-const AppwriteContext = createContext<AppwriteContextType | undefined>(undefined);
+const AppwriteContext = createContext<AppwriteContextType | null>(null);
 
 export const useAppwrite = () => {
   const context = useContext(AppwriteContext);
@@ -35,271 +41,210 @@ export const useAppwrite = () => {
   return context;
 };
 
-export const AppwriteProvider: React.FC<{ children: React.ReactNode }> = ({ children }): JSX.Element => {
+export const AppwriteProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<AppwriteUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    checkAuthStatus();
+    checkAuth();
   }, []);
 
-  const checkAuthStatus = async () => {
+  const checkAuth = async () => {
     try {
-      setLoading(true);
-      
-      // Check if Appwrite is properly configured
-      const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-      if (!APPWRITE_PROJECT_ID || APPWRITE_PROJECT_ID === 'demo-project') {
-        console.warn('Appwrite not properly configured');
-        setUser(null);
-        return;
+      const account = await services.account.get();
+      if (account) {
+        await loadUserProfile(account.$id);
       }
-
-      console.log('Checking auth status...');
-      const currentUser = await auth.getCurrentUser();
-      
-      if (currentUser) {
-        console.log('User found:', currentUser.email || 'Anonymous');
-        setUser(currentUser);
-        
-        // Only try to load profile for authenticated users (not anonymous)
-        if (currentUser.$id !== 'anonymous') {
-          await loadUserProfile(currentUser.$id);
-        }
-      } else {
-        console.log('No user session found');
-        setUser(null);
-      }
-    } catch (error: any) {
-      console.error('Error in checkAuthStatus:', error);
-      // If we get here, even anonymous session creation failed
-      setUser({
-        $id: 'anonymous',
-        $createdAt: new Date().toISOString(),
-        $updatedAt: new Date().toISOString(),
-        name: 'Anonymous',
-        email: '',
-        emailVerification: false,
-        phoneVerification: false,
-        prefs: {},
-        accessedAt: new Date().toISOString()
-      } as AppwriteUser);
+    } catch (err) {
+      console.error('Auth check failed:', err);
+      setUser(null);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const loadUserProfile = async (userId: string) => {
     try {
       // Try to get user profile from database
-      const userProfile = await db.getDocument(COLLECTIONS.USERS, userId);
-      if (userProfile) {
-        // Merge database data with auth data
-        setUser(prev => prev ? { ...prev, ...userProfile } : null);
-      }
-    } catch (error) {
-      // User profile doesn't exist in database yet, create it
-      console.log('User profile not found in database, creating now...');
-      
-      try {
-        // Get current user from auth service to access email and name
-        const currentUser = await auth.getCurrentUser();
+      const response = await database.listDocuments(COLLECTIONS.USERS, [
+        `$id=${userId}`
+      ]);
+
+      if (response.total > 0) {
+        const userProfile = response.documents[0] as AppwriteUser;
+        setUser(prev => prev ? { ...prev, ...userProfile } : userProfile);
+      } else {
+        // Get current user from account service
+        const currentUser = await services.account.get();
         
         if (currentUser && currentUser.$id === userId) {
           // Create the user profile with minimal fields that match the schema
-          const userProfile = await db.createDocument(
-            COLLECTIONS.USERS,
-            userId,
-            {
-              name: currentUser.name,
-              // Do not include 'email' if it's not in the schema
-              // email: currentUser.email,
-              role: 'member',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-            [`read("user:${userId}")`, `write("user:${userId}")`]
-          );
-          
-          console.log('User profile created successfully:', userProfile.$id);
-          
-          // Merge database data with auth data
-          setUser(prev => prev ? { ...prev, ...userProfile } : null);
-        } else {
-          console.error('Failed to create user profile: Current user ID does not match');
+          const newUser = await database.createDocument(COLLECTIONS.USERS, {
+            name: currentUser.name,
+            email: currentUser.email,
+            preferences: {
+              theme: 'system',
+              language: 'en',
+              textSize: 'medium',
+              emailNotifications: true,
+              pushNotifications: true,
+              transactionAlerts: true,
+              securityAlerts: true,
+              marketingEmails: false
+            }
+          });
+
+          setUser(newUser as AppwriteUser);
         }
-      } catch (createError) {
-        console.error('Error creating user profile:', createError);
       }
+    } catch (err) {
+      console.error('Error loading user profile:', err);
+      setError('Failed to load user profile');
     }
   };
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, password: string) => {
     try {
-      setLoading(true);
-      
-      // Check if Appwrite is properly configured
-      const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-      if (!APPWRITE_PROJECT_ID || APPWRITE_PROJECT_ID === 'demo-project') {
-        return { 
-          success: false, 
-          error: 'Appwrite is not properly configured. Please check your environment variables.' 
-        };
-      }
+      setIsLoading(true);
+      setError(null);
 
-      console.log('Attempting to log in with email:', email);
-      
-      // First, try to create an email session
-      await auth.createEmailSession(email, password);
-      console.log('Session created successfully');
-      
-      // Then get the current user
-      const currentUser = await auth.getCurrentUser();
-      console.log('User authenticated:', currentUser?.email);
-      
-      if (currentUser) {
-        const appwriteUser: AppwriteUser = {
-          $id: currentUser.$id,
-          $createdAt: (currentUser as any).$createdAt || new Date().toISOString(),
-          $updatedAt: (currentUser as any).$updatedAt || new Date().toISOString(),
-          name: currentUser.name,
-          email: currentUser.email,
-          emailVerification: currentUser.emailVerification,
-          phoneVerification: (currentUser as any).phoneVerification || false,
-          prefs: currentUser.prefs || {},
-          accessedAt: new Date().toISOString()
-        };
-        setUser(appwriteUser);
-        // Load additional user data from database if needed
-        await loadUserProfile(currentUser.$id);
-        return { success: true };
-      } else {
-        return { success: false, error: 'User not found' };
-      }
-    } catch (error: any) {
-      console.error('Login error:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Login failed' 
-      };
+      await services.account.createEmailSession(email, password);
+      const account = await services.account.get();
+      await loadUserProfile(account.$id);
+    } catch (err) {
+      console.error('Login failed:', err);
+      setError('Invalid email or password');
+      throw err;
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const register = async (email: string, password: string, name: string) => {
     try {
-      setLoading(true);
-      const newUser = await auth.createAccount(email, password, name);
-      
-      if (newUser) {
-        // Create user profile in database
-        try {
-          await db.createDocument(
-            COLLECTIONS.USERS,
-            newUser.$id,
-            {
-              email: newUser.email,
-              name: newUser.name,
-              role: 'member',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-            [`read("user:${newUser.$id}")`, `write("user:${newUser.$id}")`]
-          );
-        } catch (dbError) {
-          console.error('Error creating user profile:', dbError);
-          // Continue even if database creation fails
-        }
+      setIsLoading(true);
+      setError(null);
 
-        const appwriteUser: AppwriteUser = {
-          $id: newUser.$id,
-          $createdAt: (newUser as any).$createdAt || new Date().toISOString(),
-          $updatedAt: (newUser as any).$updatedAt || new Date().toISOString(),
-          name: newUser.name,
-          email: newUser.email,
-          emailVerification: newUser.emailVerification,
-          phoneVerification: (newUser as any).phoneVerification || false,
-          prefs: newUser.prefs || {},
-          accessedAt: new Date().toISOString()
-        };
-        setUser(appwriteUser);
-        return { success: true };
-      } else {
-        return { success: false, error: 'Registration failed' };
-      }
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Registration failed' 
-      };
+      const account = await services.account.create('unique()', email, password, name);
+      await services.account.createEmailSession(email, password);
+      await loadUserProfile(account.$id);
+    } catch (err) {
+      console.error('Registration failed:', err);
+      setError('Registration failed. Please try again.');
+      throw err;
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const logout = async () => {
     try {
-      setLoading(true);
-      await auth.deleteSessions();
+      setIsLoading(true);
+      setError(null);
+
+      await services.account.deleteSession('current');
       setUser(null);
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch (err) {
+      console.error('Logout failed:', err);
+      setError('Failed to logout');
+      throw err;
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const updateUser = async (userData: Partial<AppwriteUser>) => {
+  const updateProfile = async (data: Partial<AppwriteUser>) => {
+    if (!user) throw new Error('Not authenticated');
+
     try {
-      if (user) {
-        // Update in Appwrite account
-        if (userData.name) {
-          await auth.updateName(userData.name);
-        }
-        if (userData.email) {
-          // Note: Email update requires password verification
-          // await auth.updateEmail(userData.email, password);
-        }
+      setIsLoading(true);
+      setError(null);
 
-        // Update in database
-        await db.updateDocument(COLLECTIONS.USERS, user.$id, {
-          ...userData,
-          updated_at: new Date().toISOString(),
-        });
-
-        // Update local state
-        setUser(prev => prev ? { ...prev, ...userData } : null);
+      // Update name in account if changed
+      if (data.name) {
+        await services.account.updateName(data.name);
       }
-    } catch (error) {
-      console.error('Error updating user:', error);
-      throw error;
+
+      // Update profile in database
+      const updatedUser = await database.updateDocument(
+        COLLECTIONS.USERS,
+        user.$id,
+        data
+      );
+
+      setUser(updatedUser as AppwriteUser);
+    } catch (err) {
+      console.error('Profile update failed:', err);
+      setError('Failed to update profile');
+      throw err;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const refreshUser = async () => {
+  const updatePreferences = async (preferences: Partial<AppwriteUser['preferences']>) => {
+    if (!user) throw new Error('Not authenticated');
+
     try {
-      const currentUser = await auth.getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        await loadUserProfile(currentUser.$id);
-      }
-    } catch (error) {
-      console.error('Error refreshing user:', error);
+      setIsLoading(true);
+      setError(null);
+
+      const updatedUser = await database.updateDocument(
+        COLLECTIONS.USERS,
+        user.$id,
+        {
+          preferences: {
+            ...user.preferences,
+            ...preferences
+          }
+        }
+      );
+
+      setUser(updatedUser as AppwriteUser);
+    } catch (err) {
+      console.error('Preferences update failed:', err);
+      setError('Failed to update preferences');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!user) throw new Error('Not authenticated');
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Delete user profile from database
+      await database.deleteDocument(COLLECTIONS.USERS, user.$id);
+
+      // Delete account
+      await services.account.delete();
       setUser(null);
+    } catch (err) {
+      console.error('Account deletion failed:', err);
+      setError('Failed to delete account');
+      throw err;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const value: AppwriteContextType = {
+  const value = {
     user,
-    loading,
-    isAuthenticated: !!user,
+    isLoading,
+    error,
     login,
-    register,
     logout,
-    updateUser,
-    refreshUser,
+    register,
+    updateProfile,
+    updatePreferences,
+    deleteAccount,
   };
 
   return (
@@ -308,3 +253,5 @@ export const AppwriteProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     </AppwriteContext.Provider>
   );
 };
+
+export default AppwriteContext;

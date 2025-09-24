@@ -8,8 +8,19 @@ import { EmptyContactsState } from '../../components/chat/EmptyContactsState';
 import { UserDirectory } from '../../components/chat/UserDirectory';
 import { contactManager } from '../../lib/contacts';
 import { useAuth } from '../../contexts/AuthContext';
-import { appwrite } from '../../lib/appwrite';
-import { Query } from 'appwrite';
+import { database, COLLECTIONS } from '../../lib/appwrite';
+import { Query, Models } from 'appwrite';
+
+interface AppwriteGroup extends Models.Document {
+  type: string;
+  name: string;
+  description: string;
+  created_by: string;
+  avatar_url?: string;
+  members: string[];
+  messages: any[];
+  fund_collections: any[];
+}
 
 interface GroupMember {
   id: string;
@@ -132,12 +143,12 @@ const ChatList = () => {
       setIsLoading(true);
 
       // Load groups where user is a member
-      const response = await appwrite.listDocuments('groups', [
+      const response = await database.listDocuments(COLLECTIONS.GROUPS, [
         Query.search('members', user.$id),
       ]);
 
       // Map the response to match our ChatGroup type
-      const groupsData = response.documents
+      const groupsData = (response.documents as AppwriteGroup[])
         .filter(doc => doc.type !== 'direct')
         .map(doc => ({
           id: doc.$id,
@@ -152,7 +163,17 @@ const ChatList = () => {
           fund_collections: doc.fund_collections || []
         }));
 
-      setGroups(groupsData);
+      setGroups(groupsData.map(group => ({
+        ...group,
+        members: group.members.map(id => ({
+          id,
+          user_id: id,
+          group_id: group.id,
+          email: '',
+          role: 'member',
+          joined_at: group.created_at
+        }))
+      })));
       
       // Load direct chats (contacts)
       try {

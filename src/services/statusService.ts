@@ -1,207 +1,124 @@
-import { appwrite, storage } from '../lib/appwrite';
-import { StatusManager } from '../lib/status';
+import { services, storage } from '../lib/appwrite';
+import { StatusUpdate, statusService } from '../lib/status';
 import { STORAGE_BUCKETS } from '../lib/constants';
 
-// Define the shape of the status object
-export interface Status {
-  id: string;
-  userId: string;
-  username: string;
-  avatar: string;
-  mediaUrl: string;
-  caption?: string;
-  createdAt: string;
-  updatedAt: string;
-  views: string[];
-  type: 'photo' | 'video' | 'text';
-  background?: string; // For text statuses
+export interface StatusView extends StatusUpdate {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    avatar?: string;
+  };
 }
 
-// Create an instance of the StatusManager
-const statusManager = new StatusManager();
-
-// Status service with typed methods
-export const statusService = {
-  // Get all statuses from users that the current user follows
-  async getStatuses(): Promise<Status[]> {
+class StatusViewService {
+  /**
+   * Get a status by ID with user information
+   */
+  async getStatusById(id: string): Promise<StatusView | null> {
     try {
-      console.log('Fetching statuses from Appwrite...');
-      const statusUpdates = await statusManager.getRecentStatuses();
-      
-      // Convert StatusUpdate to Status format
-      return statusUpdates.map(update => ({
-        id: update.id,
-        userId: update.user_id,
-        username: update.user?.email?.split('@')[0] || 'Unknown',
-        avatar: update.user?.id ? `https://ui-avatars.com/api/?name=${update.user.email}&background=random` : '',
-        mediaUrl: update.content,
-        caption: update.caption || '',
-        createdAt: update.created_at,
-        updatedAt: update.created_at,
-        views: update.views?.map(view => view.viewer_id) || [],
-        type: update.type,
-        background: update.background
-      }));
-    } catch (error: any) {
-      console.error('Error fetching statuses:', error);
-      return []; // Return empty array on error
-    }
-  },
+      const status = await statusService.getStatusById(id);
+      if (!status) return null;
 
-  // Get a single status by ID
-  async getStatusById(id: string): Promise<Status> {
-    try {
-      // Get the status from Appwrite
-      const statusUpdate = await appwrite.getDocument('status_updates', id);
-      
-      // Get the user information
-      const user = await appwrite.getDocument('users', statusUpdate.user_id);
-      
+      const user = await services.account.get();
+      if (!user) return null;
+
       return {
-        id: statusUpdate.$id,
-        userId: statusUpdate.user_id,
-        username: user.name || user.email.split('@')[0],
-        avatar: user.avatar || `https://ui-avatars.com/api/?name=${user.name}&background=random`,
-        mediaUrl: statusUpdate.content,
-        caption: statusUpdate.caption || '',
-        createdAt: statusUpdate.created_at,
-        updatedAt: statusUpdate.created_at,
-        views: statusUpdate.views || [],
-        type: statusUpdate.type,
-        background: statusUpdate.background
+        ...status,
+        user: {
+          id: user.$id,
+          name: user.name,
+          email: user.email,
+          avatar: user.prefs?.avatar
+        }
       };
-    } catch (error: any) {
-      console.error(`Error fetching status ${id}:`, error);
-      throw new Error('Failed to fetch status');
+    } catch (error) {
+      console.error('Error getting status:', error);
+      return null;
     }
-  },
+  }
 
-  // Create a new media status (photo or video)
-  async createStatus(
-    file: File,
-    caption?: string
-  ): Promise<Status> {
+  /**
+   * Create a new status update with media
+   */
+  async createStatusWithText(text: string): Promise<StatusView | null> {
     try {
-      console.log('Creating new status with Appwrite...');
-      
-      // First, upload the file to storage
-      const fileType = file.type.startsWith('image/') ? 'photo' : 'video';
-      
-      // Create a unique file ID
-      const fileId = `status_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      
-      // Upload the file to Appwrite storage
-      await storage.createFile(
-        STORAGE_BUCKETS.STATUS_MEDIA,
-        fileId,
-        file
-      );
-      
-      // Get the file URL
-      const fileUrl = storage.getFileView(STORAGE_BUCKETS.STATUS_MEDIA, fileId).toString();
-      
-      // Create the status in Appwrite
-      const statusUpdate = await statusManager.createStatus(
-        fileType,
-        fileUrl,
-        caption
-      );
-      
-      // Return the status in the expected format
-      return {
-        id: statusUpdate.id,
-        userId: statusUpdate.user_id,
-        username: statusUpdate.user?.email?.split('@')[0] || 'Unknown',
-        avatar: statusUpdate.user?.id ? `https://ui-avatars.com/api/?name=${statusUpdate.user.email}&background=random` : '',
-        mediaUrl: statusUpdate.content,
-        caption: caption || '',
-        createdAt: statusUpdate.created_at,
-        updatedAt: statusUpdate.created_at,
-        views: [],
-        type: statusUpdate.type
-      };
-    } catch (error: any) {
-      console.error('Error creating status:', error);
-      throw new Error(error.message || 'Failed to create status');
-    }
-  },
+      const status = await statusService.createStatus(text);
+      if (!status) throw new Error('Failed to create status');
 
-  // Create a new text status
-  async createTextStatus(
-    text: string,
-    background: string,
-    caption?: string
-  ): Promise<Status> {
-    try {
-      console.log('Creating new text status with Appwrite...');
-      
-      // Create the status in Appwrite
-      const statusUpdate = await statusManager.createTextStatus(
-        text,
-        background,
-        caption
-      );
-      
-      // Return the status in the expected format
+      const user = await services.account.get();
+      if (!user) throw new Error('Not authenticated');
+
       return {
-        id: statusUpdate.id,
-        userId: statusUpdate.user_id,
-        username: statusUpdate.user?.email?.split('@')[0] || 'Unknown',
-        avatar: statusUpdate.user?.id ? `https://ui-avatars.com/api/?name=${statusUpdate.user.email}&background=random` : '',
-        mediaUrl: statusUpdate.content,
-        caption: caption || '',
-        createdAt: statusUpdate.created_at,
-        updatedAt: statusUpdate.created_at,
-        views: [],
-        type: 'text',
-        background: background
+        ...status,
+        user: {
+          id: user.$id,
+          name: user.name,
+          email: user.email,
+          avatar: user.prefs?.avatar
+        }
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error creating text status:', error);
-      throw new Error(error.message || 'Failed to create text status');
+      return null;
     }
-  },
+  }
 
-  // Mark a status as viewed
-  async viewStatus(statusId: string): Promise<void> {
+  async createStatusWithMedia(file: File, caption: string): Promise<StatusView | null> {
     try {
-      await statusManager.viewStatus(statusId);
-      console.log(`Status ${statusId} viewed and recorded in Appwrite`);
-    } catch (error: any) {
-      console.error('Error viewing status:', error);
-      // Don't throw error for view status to avoid breaking the UI
+      // Upload the file
+      const fileResponse = await storage.uploadFile(STORAGE_BUCKETS.STATUS_MEDIA, file);
+      const fileId = fileResponse.$id;
+
+      // Get the file URL
+      const fileUrl = storage.getFileView(STORAGE_BUCKETS.STATUS_MEDIA, fileId);
+      const fileType = file.type.startsWith('image/') ? 'image' : 'video';
+
+      // Create the status
+      const status = await statusService.createStatus(caption, fileType, fileUrl);
+      if (!status) throw new Error('Failed to create status');
+
+      const user = await services.account.get();
+      if (!user) throw new Error('Not authenticated');
+
+      return {
+        ...status,
+        user: {
+          id: user.$id,
+          name: user.name,
+          email: user.email,
+          avatar: user.prefs?.avatar
+        }
+      };
+    } catch (error) {
+      console.error('Error creating status with media:', error);
+      return null;
     }
-  },
+  }
 
-  // Get user's own statuses
-  async getMyStatuses(): Promise<Status[]> {
+  /**
+   * Get recent status updates with user information
+   */
+  async getRecentUpdates(): Promise<StatusView[]> {
     try {
-      // Get the current user
-      const currentUser = await appwrite.getAccount();
-      if (!currentUser) {
-        return [];
-      }
-      
-      // Get all statuses
-      const allStatuses = await this.getStatuses();
-      
-      // Filter to only include the current user's statuses
-      return allStatuses.filter(status => status.userId === currentUser.$id);
-    } catch (error: any) {
-      console.error('Error fetching my statuses:', error);
-      // Return empty array instead of throwing to prevent UI breakage
+      const updates = await statusService.getRecentUpdates();
+      const user = await services.account.get();
+      if (!user) return [];
+
+      return updates.map(status => ({
+        ...status,
+        user: {
+          id: user.$id,
+          name: user.name,
+          email: user.email,
+          avatar: user.prefs?.avatar
+        }
+      }));
+    } catch (error) {
+      console.error('Error getting recent updates:', error);
       return [];
     }
-  },
+  }
+}
 
-  // Delete a status
-  async deleteStatus(statusId: string): Promise<void> {
-    try {
-      await statusManager.deleteStatus(statusId);
-      console.log(`Status ${statusId} deleted from Appwrite`);
-    } catch (error: any) {
-      console.error(`Error deleting status ${statusId}:`, error);
-      throw new Error('Failed to delete status');
-    }
-  },
-};
+export const statusViewService = new StatusViewService();

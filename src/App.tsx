@@ -18,7 +18,7 @@ import Settings from './pages/settings/Settings';
 
 import { XMPPProvider } from './contexts/XMPPContext';
 import { AppwriteProvider } from './contexts/AppwriteContext';
-import { KijumbeAuthProvider } from './contexts/KijumbeAuthContext';
+import { AuthProvider as KijumbeAuthProvider } from './contexts/KijumbeAuthContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function AppContent() {

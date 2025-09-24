@@ -1,4 +1,4 @@
-import { db, COLLECTIONS, auth } from './appwrite';
+import { database as db, COLLECTIONS, auth } from './appwrite';
 import { PaymentManager } from './payments';
 
 export interface ChatGroup {

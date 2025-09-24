@@ -1,563 +1,281 @@
-import { db, COLLECTIONS, auth } from './appwrite';
+import { database, COLLECTIONS, services } from './appwrite';
 import { createSimpleXMPPManager, SimpleXMPPManager, SimpleXMPPMessage, xml } from './xmpp-simple';
+import { Models } from 'appwrite';
 
 export interface ChatMessage {
   id: string;
-  stream_id: string;
-  user_id: string;
-  message: string;
+  content: string;
+  sender_id: string;
+  recipient_id: string;
+  type: 'text' | 'image' | 'video' | 'file';
+  url?: string;
   created_at: string;
-  user?: {
-    id: string;
-    email: string;
-    name?: string;
-    avatar?: string;
-  } | null;
+  updated_at: string;
+}
+
+interface AppwriteChatMessage extends Models.Document {
+  content: string;
+  sender_id: string;
+  recipient_id: string;
+  type: 'text' | 'image' | 'video' | 'file';
+  url?: string;
 }
 
 export class ChatManager {
-  private streamId: string;
-  private messageHandler: (message: ChatMessage) => void;
   private xmppManager: SimpleXMPPManager | null = null;
-  private isConnected: boolean = false;
-  private messageCache: Map<string, ChatMessage> = new Map();
-  private pollingInterval: number | null = null;
-  private lastMessageTimestamp: string = '';
-  private useXMPP: boolean = false;
-  private roomJid: string = '';
-  private userNickname: string = '';
-  
-  constructor(streamId: string, onMessage: (message: ChatMessage) => void) {
-    this.streamId = streamId;
-    this.messageHandler = onMessage;
-    this.roomJid = `stream_${streamId}@conference.${import.meta.env.VITE_XMPP_DOMAIN || 'localhost'}`;
-    
-    // Check if XMPP is configured
-    const xmppServer = import.meta.env.VITE_XMPP_SERVER;
-    const xmppDomain = import.meta.env.VITE_XMPP_DOMAIN;
-    this.useXMPP = !!(xmppServer && xmppDomain);
-    
-    // Initialize XMPP if available
+  private isXMPPConnected = false;
+
+  constructor() {
     this.initializeXMPP();
   }
-  
+
+  /**
+   * Initialize XMPP connection
+   */
   private async initializeXMPP(): Promise<void> {
-    if (!this.useXMPP) {
-      console.log('XMPP not configured, falling back to Appwrite');
-      return;
-    }
-    
     try {
       // Get current user
-      const currentUser = await auth.getCurrentUser();
-      if (!currentUser) {
-        console.warn('User not authenticated, cannot initialize XMPP');
+      const account = await services.account.get();
+      if (!account) {
+        console.warn('No authenticated user, XMPP initialization skipped');
         return;
       }
-      
-      // Create a sanitized username for XMPP
-      const username = currentUser.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
-      this.userNickname = username;
-      
-      // Check if user exists in ejabberd, create if not
-      const ejabberdCredentials = await this.checkEjabberdUser(username, currentUser.$id);
-      
-      // Create XMPP manager with ejabberd configuration
-      this.xmppManager = createSimpleXMPPManager(
-        ejabberdCredentials.username,
-        ejabberdCredentials.password,
-        {
-          resource: `stream_${this.streamId}`,
-          // Explicitly set ejabberd server and domain
-          server: import.meta.env.VITE_EJABBERD_WS_URL || 'ws://localhost:5280/ws',
-          domain: import.meta.env.VITE_EJABBERD_DOMAIN || 'localhost'
-        }
-      );
-      
-      // Set up message handler
-      this.xmppManager.onMessage(async (xmppMessage) => {
-        // Only process group messages from the correct room
-        if (xmppMessage.type === 'groupchat' && xmppMessage.from.startsWith(this.roomJid)) {
-          const senderNickname = xmppMessage.from.split('/')[1];
-          if (senderNickname !== this.userNickname) { // Don't process own messages twice
-            try {
-              // Try to get the actual user ID from the database
-              const userQuery = await db.listDocuments(COLLECTIONS.USERS, [
-                `xmpp_username=${senderNickname}`
-              ]);
-              
-              let userId = senderNickname;
-              let userEmail = `${senderNickname}@${import.meta.env.VITE_EJABBERD_DOMAIN || 'localhost'}`;
-              let userName = senderNickname;
-              let userAvatar = '';
-              
-              // If we found the user in our database, use their actual info
-              if (userQuery.documents.length > 0) {
-                const userDoc = userQuery.documents[0];
-                userId = userDoc.$id;
-                userEmail = userDoc.email;
-                userName = userDoc.name || senderNickname;
-                userAvatar = userDoc.avatar || '';
-              }
-              
-              const chatMessage: ChatMessage = {
-                id: xmppMessage.id,
-                stream_id: this.streamId,
-                user_id: userId,
-                message: xmppMessage.body,
-                created_at: xmppMessage.timestamp.toISOString(),
-                user: {
-                  id: userId,
-                  email: userEmail,
-                  name: userName,
-                  avatar: userAvatar
-                }
-              };
-              
-              // Store message in Appwrite for persistence
-              this.saveMessageToAppwrite(chatMessage).catch(console.error);
-              
-              // Store in cache and notify handler
-              this.messageCache.set(chatMessage.id, chatMessage);
-              this.messageHandler(chatMessage);
-            } catch (err) {
-              console.error('Error processing XMPP message:', err);
-              // Still create a basic message even if there's an error
-              const chatMessage: ChatMessage = {
-                id: xmppMessage.id,
-                stream_id: this.streamId,
-                user_id: senderNickname,
-                message: xmppMessage.body,
-                created_at: xmppMessage.timestamp.toISOString(),
-                user: {
-                  id: senderNickname,
-                  email: `${senderNickname}@${import.meta.env.VITE_EJABBERD_DOMAIN || 'localhost'}`,
-                  name: senderNickname
-                }
-              };
-              
-              // Store in cache and notify handler
-              this.messageCache.set(chatMessage.id, chatMessage);
-              this.messageHandler(chatMessage);
-            }
-          }
-        }
+
+      // Create XMPP manager
+      this.xmppManager = createSimpleXMPPManager({
+        jid: account.email,
+        password: account.$id, // Use Appwrite user ID as password
+        host: 'xmpp.switch.app',
+        port: 5222
       });
-      
-      // Connect to XMPP server
+
+      // Set up event handlers
+      this.xmppManager.on('connect', () => {
+        this.isXMPPConnected = true;
+        console.log('XMPP connected');
+      });
+
+      this.xmppManager.on('disconnect', () => {
+        this.isXMPPConnected = false;
+        console.log('XMPP disconnected');
+      });
+
+      this.xmppManager.on('error', (error) => {
+        console.error('XMPP error:', error);
+      });
+
+      // Connect
       await this.xmppManager.connect();
-      
-      // Join the room for this stream
-      await this.xmppManager.joinRoom(this.roomJid, this.userNickname);
-      
-      // Fetch message history from the room
-      await this.fetchRoomHistory();
-      
-      this.isConnected = true;
-      console.log(`Connected to ejabberd XMPP chat room: ${this.roomJid}`);
     } catch (error) {
-      console.error('Failed to initialize XMPP with ejabberd:', error);
-      this.useXMPP = false;
-      console.log('Falling back to Appwrite for chat');
-    }
-  }
-  
-  // Check if user exists in ejabberd, create if not
-  private async checkEjabberdUser(username: string, userId: string): Promise<{username: string, password: string}> {
-    try {
-      // Check if we have ejabberd credentials stored in Appwrite
-      const userQuery = await db.listDocuments(COLLECTIONS.USERS, [
-        `$id=${userId}`
-      ]);
-      
-      if (userQuery.documents.length > 0) {
-        const userDoc = userQuery.documents[0];
-        
-        // If user already has XMPP credentials, return them
-        if (userDoc.xmpp_username && userDoc.xmpp_password) {
-          return {
-            username: userDoc.xmpp_username,
-            password: userDoc.xmpp_password
-          };
-        }
-        
-        // Otherwise, generate new credentials
-        const xmppUsername = username;
-        const xmppPassword = `switch_${userId}_${Math.random().toString(36).substring(2, 10)}`;
-        
-        // Update user document with XMPP credentials
-        await db.updateDocument(
-          COLLECTIONS.USERS,
-          userId,
-          {
-            xmpp_username: xmppUsername,
-            xmpp_password: xmppPassword
-          }
-        );
-        
-        // In a production environment, you would make an API call to ejabberd to create the user
-        // For example:
-        // await fetch(`${import.meta.env.VITE_EJABBERD_API_URL}/api/register`, {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify({ user: xmppUsername, host: import.meta.env.VITE_EJABBERD_DOMAIN, password: xmppPassword })
-        // });
-        
-        return {
-          username: xmppUsername,
-          password: xmppPassword
-        };
-      }
-      
-      // Fallback to default credentials if user not found
-      return {
-        username,
-        password: `switch_${userId}`
-      };
-    } catch (error) {
-      console.error('Error checking ejabberd user:', error);
-      // Fallback to default credentials
-      return {
-        username,
-        password: `switch_${userId}`
-      };
-    }
-  }
-  
-  // Fetch message history from the room
-  private async fetchRoomHistory(): Promise<void> {
-    if (!this.xmppManager || !this.isConnected) return;
-    
-    try {
-      // Use XEP-0313: Message Archive Management to fetch history
-      // This is a simplified implementation - in a real app you'd parse the response
-      const id = `history_${Date.now()}`;
-      const historyQuery = xml(
-        'iq',
-        { type: 'set', id },
-        xml('query', { xmlns: 'urn:xmpp:mam:2', queryid: id },
-          xml('x', { xmlns: 'jabber:x:data', type: 'submit' },
-            xml('field', { var: 'FORM_TYPE', type: 'hidden' },
-              xml('value', {}, 'urn:xmpp:mam:2')
-            ),
-            xml('field', { var: 'with' },
-              xml('value', {}, this.roomJid)
-            )
-          ),
-          xml('set', { xmlns: 'http://jabber.org/protocol/rsm' },
-            xml('max', {}, '20'),
-            xml('before', {})
-          )
-        )
-      );
-      
-      // Send the query - in a real implementation you would handle the response
-      await this.xmppManager.sendIq(historyQuery);
-      
-      // For now, we'll still rely on Appwrite for message history
-      const messages = await this.getMessages();
-      messages.forEach(msg => {
-        this.messageCache.set(msg.id, msg);
-      });
-    } catch (error) {
-      console.error('Error fetching room history:', error);
+      console.error('Error initializing XMPP:', error);
+      this.isXMPPConnected = false;
     }
   }
 
-  async sendMessage(message: string): Promise<ChatMessage> {
+  /**
+   * Get chat messages
+   */
+  async getMessages(recipientId: string, limit = 50): Promise<ChatMessage[]> {
     try {
-      // Get current user
-      const currentUser = await auth.getCurrentUser();
-      if (!currentUser) {
-        throw new Error('User not authenticated');
-      }
-      
-      const messageId = `msg_${this.streamId}_${currentUser.$id}_${Date.now()}`;
-      const timestamp = new Date().toISOString();
-      
-      // Try to send via XMPP if connected
-      if (this.useXMPP && this.xmppManager && this.isConnected) {
-        try {
-          await this.xmppManager.sendGroupMessage(this.roomJid, message);
-          
-          // Create a local message object
-          const chatMessage: ChatMessage = {
-            id: messageId,
-            stream_id: this.streamId,
-            user_id: currentUser.$id,
-            message,
-            created_at: timestamp,
-            user: { 
-              id: currentUser.$id, 
-              email: currentUser.email,
-              name: currentUser.name,
-              avatar: currentUser.avatar
-            }
-          };
-          
-          // Store in cache
-          this.messageCache.set(chatMessage.id, chatMessage);
-          
-          // Also save to Appwrite for persistence
-          this.saveMessageToAppwrite(chatMessage).catch(console.error);
-          
-          return chatMessage;
-        } catch (xmppError) {
-          console.error('XMPP message send failed, falling back to Appwrite:', xmppError);
-          // Fall through to Appwrite method
-        }
-      }
-      
-      // Appwrite fallback
-      return this.sendMessageViaAppwrite(message, messageId, timestamp, currentUser);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      throw error;
-    }
-  }
-  
-  private async sendMessageViaAppwrite(message: string, messageId: string, timestamp: string, currentUser: any): Promise<ChatMessage> {
-    const messageData = {
-      stream_id: this.streamId,
-      user_id: currentUser.$id,
-      message,
-      created_at: timestamp,
-    };
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
 
-    const result = await db.createDocument(
-      COLLECTIONS.STREAM_MESSAGES,
-      messageId,
-      messageData,
-      [`read("user:${currentUser.$id}")`, `write("user:${currentUser.$id}")`]
-    );
-
-    // Create chat message object with proper structure
-    const chatMessage: ChatMessage = {
-      id: result.$id,
-      stream_id: this.streamId,
-      user_id: currentUser.$id,
-      message,
-      created_at: timestamp,
-      user: { 
-        id: currentUser.$id, 
-        email: currentUser.email,
-        name: currentUser.name,
-        avatar: currentUser.avatar
-      }
-    };
-    
-    // Store in cache
-    this.messageCache.set(chatMessage.id, chatMessage);
-    
-    // Notify handler
-    this.messageHandler(chatMessage);
-    
-    return chatMessage;
-  }
-  
-  private async saveMessageToAppwrite(chatMessage: ChatMessage): Promise<void> {
-    try {
-      await db.createDocument(
-        COLLECTIONS.STREAM_MESSAGES,
-        chatMessage.id,
-        {
-          stream_id: chatMessage.stream_id,
-          user_id: chatMessage.user_id,
-          message: chatMessage.message,
-          created_at: chatMessage.created_at,
-        },
-        [`read("user:${chatMessage.user_id}")`, `write("user:${chatMessage.user_id}")`]
-      );
-    } catch (error) {
-      console.error('Failed to save message to Appwrite:', error);
-      // Non-critical error, we can continue without persistence
-    }
-  }
-
-  async getMessages(): Promise<ChatMessage[]> {
-    try {
-      // Check if Appwrite is properly configured
-      const APPWRITE_PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'demo-project';
-      if (APPWRITE_PROJECT_ID === 'demo-project') {
-        console.warn('Appwrite not configured, returning cached messages');
-        return Array.from(this.messageCache.values());
-      }
-
-      const result = await db.listDocuments(COLLECTIONS.STREAM_MESSAGES, [
-        `stream_id=${this.streamId}`,
-        'orderAsc(created_at)',
-        'limit(100)'
+      const response = await database.listDocuments('chat_messages', [
+        `sender_id=${account.$id}`,
+        `recipient_id=${recipientId}`,
+        'orderDesc(created_at)',
+        `limit(${limit})`
       ]);
 
-      // For each message, fetch the user separately
-      const messagesWithUsers = await Promise.all(
-        result.documents.map(async (message: any) => {
-          try {
-            const userResult = await db.getDocument(COLLECTIONS.USERS, message.user_id);
-            // Convert Appwrite document to ChatMessage format
-            const chatMessage: ChatMessage = {
-              id: message.$id,
-              stream_id: message.stream_id,
-              user_id: message.user_id,
-              message: message.message,
-              created_at: message.created_at || message.$createdAt,
-              user: { 
-                id: userResult.$id, 
-                email: userResult.email,
-                name: userResult.name,
-                avatar: userResult.avatar
-              } 
-            };
-            return chatMessage;
-          } catch (userError) {
-            console.warn('Could not fetch user for message:', userError);
-            // Convert Appwrite document to ChatMessage format even without user
-            const chatMessage: ChatMessage = {
-              id: message.$id,
-              stream_id: message.stream_id,
-              user_id: message.user_id,
-              message: message.message,
-              created_at: message.created_at || message.$createdAt,
-              user: null
-            };
-            return chatMessage;
-          }
-        })
-      );
-      
-      // Update cache with these messages
-      messagesWithUsers.forEach(msg => {
-        this.messageCache.set(msg.id, msg);
-      });
-      
-      // Update last message timestamp
-      if (messagesWithUsers.length > 0) {
-        this.lastMessageTimestamp = messagesWithUsers[messagesWithUsers.length - 1].created_at;
-      }
-
-      return messagesWithUsers;
+      return response.documents.map((doc: AppwriteChatMessage) => ({
+        id: doc.$id,
+        content: doc.content,
+        sender_id: doc.sender_id,
+        recipient_id: doc.recipient_id,
+        type: doc.type,
+        url: doc.url,
+        created_at: doc.$createdAt,
+        updated_at: doc.$updatedAt
+      }));
     } catch (error) {
-      console.error('Error fetching messages:', error);
-      // Return cached messages as fallback
-      return Array.from(this.messageCache.values());
-    }
-  }
-
-  // Method to refresh messages (for polling-based real-time)
-  async refreshMessages(): Promise<ChatMessage[]> {
-    try {
-      // Only get messages newer than the last one we have
-      if (this.lastMessageTimestamp) {
-        const result = await db.listDocuments(COLLECTIONS.STREAM_MESSAGES, [
-          `stream_id=${this.streamId}`,
-          `created_at>${this.lastMessageTimestamp}`,
-          'orderAsc(created_at)',
-          'limit(100)'
-        ]);
-        
-        // Process new messages
-        const newMessages = await Promise.all(
-          result.documents.map(async (message: any) => {
-            try {
-              const userResult = await db.getDocument(COLLECTIONS.USERS, message.user_id);
-              // Convert Appwrite document to ChatMessage format
-              const chatMessage: ChatMessage = {
-                id: message.$id,
-                stream_id: message.stream_id,
-                user_id: message.user_id,
-                message: message.message,
-                created_at: message.created_at || message.$createdAt,
-                user: { 
-                  id: userResult.$id, 
-                  email: userResult.email,
-                  name: userResult.name,
-                  avatar: userResult.avatar
-                } 
-              };
-              return chatMessage;
-            } catch (userError) {
-              console.warn('Could not fetch user for message:', userError);
-              // Convert Appwrite document to ChatMessage format even without user
-              const chatMessage: ChatMessage = {
-                id: message.$id,
-                stream_id: message.stream_id,
-                user_id: message.user_id,
-                message: message.message,
-                created_at: message.created_at || message.$createdAt,
-                user: null
-              };
-              return chatMessage;
-            }
-          })
-        );
-        
-        // Update cache and notify handler for each new message
-        newMessages.forEach(msg => {
-          this.messageCache.set(msg.id, msg);
-          this.messageHandler(msg);
-        });
-        
-        // Update last message timestamp
-        if (newMessages.length > 0) {
-          this.lastMessageTimestamp = newMessages[newMessages.length - 1].created_at;
-        }
-        
-        return newMessages;
-      } else {
-        // If no last timestamp, just get all messages
-        return this.getMessages();
-      }
-    } catch (error) {
-      console.error('Error refreshing messages:', error);
+      console.error('Error getting messages:', error);
       return [];
     }
   }
 
-  // Method to start polling for new messages (only used if XMPP is not available)
-  startPolling(intervalMs: number = 2000): void {
-    // Don't start polling if XMPP is active
-    if (this.useXMPP && this.isConnected) {
-      return;
-    }
-    
-    // Clear any existing interval
-    if (this.pollingInterval !== null) {
-      clearInterval(this.pollingInterval);
-    }
-    
-    // Start new polling interval
-    this.pollingInterval = window.setInterval(async () => {
-      try {
-        await this.refreshMessages();
-      } catch (error) {
-        console.error('Error polling messages:', error);
+  /**
+   * Send a chat message
+   */
+  async sendMessage(recipientId: string, content: string, type: 'text' | 'image' | 'video' | 'file' = 'text', url?: string): Promise<ChatMessage | null> {
+    try {
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
+
+      // Try XMPP first if connected
+      if (this.isXMPPConnected && this.xmppManager) {
+        try {
+          // Get recipient's email from Appwrite
+          const recipient = await database.getDocument(COLLECTIONS.USERS, recipientId);
+          if (recipient.email) {
+            await this.xmppManager.sendMessage(recipient.email, content);
+          }
+        } catch (xmppError) {
+          console.warn('XMPP message failed, falling back to Appwrite:', xmppError);
+        }
       }
-    }, intervalMs);
+
+      // Store message in Appwrite
+      const messageId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const timestamp = new Date().toISOString();
+
+      const messageData = {
+        sender_id: account.$id,
+        recipient_id: recipientId,
+        content,
+        type,
+        url,
+        created_at: timestamp,
+        updated_at: timestamp
+      };
+
+      const response = await database.createDocument('chat_messages', messageData);
+
+      return {
+        id: response.$id,
+        content,
+        sender_id: account.$id,
+        recipient_id: recipientId,
+        type,
+        url,
+        created_at: response.$createdAt,
+        updated_at: response.$updatedAt
+      };
+    } catch (error) {
+      console.error('Error sending message:', error);
+      return null;
+    }
   }
 
-  // Method to stop polling
-  stopPolling(): void {
-    if (this.pollingInterval !== null) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
+  /**
+   * Delete a chat message
+   */
+  async deleteMessage(messageId: string): Promise<boolean> {
+    try {
+      await database.deleteDocument('chat_messages', messageId);
+      return true;
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      return false;
     }
   }
-  
-  // Clean up resources
-  async disconnect(): Promise<void> {
-    // Stop polling if active
-    this.stopPolling();
-    
-    // Leave XMPP room and disconnect if connected
-    if (this.useXMPP && this.xmppManager && this.isConnected) {
-      try {
-        await this.xmppManager.leaveRoom(this.roomJid, this.userNickname);
-        await this.xmppManager.disconnect();
-      } catch (error) {
-        console.error('Error disconnecting from XMPP:', error);
-      }
+
+  /**
+   * Get chat history
+   */
+  async getChatHistory(userId: string, limit = 50): Promise<ChatMessage[]> {
+    try {
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
+
+      // Get messages where either user is sender or recipient
+      const response = await database.listDocuments('chat_messages', [
+        `(sender_id=${account.$id} && recipient_id=${userId}) || (sender_id=${userId} && recipient_id=${account.$id})`,
+        'orderDesc(created_at)',
+        `limit(${limit})`
+      ]);
+
+      return response.documents.map((doc: AppwriteChatMessage) => ({
+        id: doc.$id,
+        content: doc.content,
+        sender_id: doc.sender_id,
+        recipient_id: doc.recipient_id,
+        type: doc.type,
+        url: doc.url,
+        created_at: doc.$createdAt,
+        updated_at: doc.$updatedAt
+      }));
+    } catch (error) {
+      console.error('Error getting chat history:', error);
+      return [];
     }
-    
-    this.isConnected = false;
+  }
+
+  /**
+   * Get recent chats
+   */
+  async getRecentChats(limit = 20): Promise<ChatMessage[]> {
+    try {
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
+
+      // Get most recent message from each chat
+      const response = await database.listDocuments('chat_messages', [
+        `sender_id=${account.$id} || recipient_id=${account.$id}`,
+        'orderDesc(created_at)',
+        `limit(${limit})`
+      ]);
+
+      // Group by chat and get most recent message
+      const chatMap = new Map<string, ChatMessage>();
+      response.documents.forEach((doc: AppwriteChatMessage) => {
+        const chatId = doc.sender_id === account.$id ? doc.recipient_id : doc.sender_id;
+        if (!chatMap.has(chatId)) {
+          chatMap.set(chatId, {
+            id: doc.$id,
+            content: doc.content,
+            sender_id: doc.sender_id,
+            recipient_id: doc.recipient_id,
+            type: doc.type,
+            url: doc.url,
+            created_at: doc.$createdAt,
+            updated_at: doc.$updatedAt
+          });
+        }
+      });
+
+      return Array.from(chatMap.values());
+    } catch (error) {
+      console.error('Error getting recent chats:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Handle incoming XMPP message
+   */
+  private async handleXMPPMessage(msg: SimpleXMPPMessage): Promise<void> {
+    try {
+      // Get sender's Appwrite ID from email
+      const senderResponse = await database.listDocuments(COLLECTIONS.USERS, [
+        `email=${msg.from}`
+      ]);
+
+      if (senderResponse.total === 0) {
+        console.warn('Unknown XMPP sender:', msg.from);
+        return;
+      }
+
+      const senderId = senderResponse.documents[0].$id;
+      const account = await services.account.get();
+      if (!account) throw new Error('Not authenticated');
+
+      // Store message in Appwrite
+      await this.sendMessage(account.$id, msg.content);
+    } catch (error) {
+      console.error('Error handling XMPP message:', error);
+    }
+  }
+
+  /**
+   * Clean up resources
+   */
+  cleanup(): void {
+    if (this.xmppManager) {
+      this.xmppManager.disconnect();
+      this.xmppManager = null;
+    }
+    this.isXMPPConnected = false;
   }
 }
+
+export const chatManager = new ChatManager();

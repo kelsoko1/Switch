@@ -1,75 +1,91 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { appwrite, COLLECTIONS } from '../lib/appwrite';
-import { Query } from 'appwrite';
+import { services, database, COLLECTIONS } from '../lib/appwrite';
+import { Models } from 'appwrite';
 
-interface User {
-  $id: string;
+interface User extends Models.Document {
   email: string;
   name: string;
-  role: 'member' | 'kiongozi' | 'admin' | 'superadmin';
-  isSuperAdmin?: boolean;
-  phone?: string;
+  role: 'user' | 'admin';
   createdAt: string;
   updatedAt: string;
 }
 
-interface KijumbeAuthContextType {
+interface AuthContextType {
   user: User | null;
   loading: boolean;
-  isAuthenticated: boolean;
-  isMember: () => boolean;
-  isKiongozi: () => boolean;
-  isAdmin: () => boolean;
-  isSuperAdmin: () => boolean;
+  error: string | null;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (email: string, password: string, name: string, role?: string) => Promise<boolean>;
+  register: (email: string, password: string, name: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
-const KijumbeAuthContext = createContext<KijumbeAuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | null>(null);
 
-export const useKijumbeAuth = () => {
-  const context = useContext(KijumbeAuthContext);
-  if (context === undefined) {
-    throw new Error('useKijumbeAuth must be used within a KijumbeAuthProvider');
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
 
-export const KijumbeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [user, setUser] = useState<User | null>(() => {
+    const storedUser = localStorage.getItem('kijumbe_user');
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const isAuthenticated = !!user;
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
-  const isMember = () => user?.role === 'member';
-  const isKiongozi = () => user?.role === 'kiongozi' || user?.role === 'admin' || user?.role === 'superadmin';
-  const isAdmin = () => user?.role === 'admin' || user?.role === 'superadmin';
-  const isSuperAdmin = () => user?.role === 'superadmin' || user?.isSuperAdmin === true;
+  const checkAuth = async () => {
+    try {
+      const account = await services.account.get();
+      if (account) {
+        const response = await database.listDocuments(COLLECTIONS.USERS, [
+          `email=${account.email}`,
+          'limit(1)'
+        ]);
+
+        if (response.total > 0) {
+          const userData = response.documents[0] as User;
+          setUser(userData);
+          localStorage.setItem('kijumbe_user', JSON.stringify(userData));
+        }
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+      setUser(null);
+      localStorage.removeItem('kijumbe_user');
+    }
+  };
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       setLoading(true);
+      setError(null);
       
       // Create session with Appwrite
-      await appwrite.createEmailPasswordSession(email, password);
-      
-      // Get user account
-      const account = await appwrite.getAccount();
+      await services.account.createEmailSession(email, password);
       
       // Get user details from database
-      const userResponse = await appwrite.listDocuments(COLLECTIONS.USERS, [
-        Query.equal('email', email),
-        Query.limit(1)
+      const response = await database.listDocuments(COLLECTIONS.USERS, [
+        `email=${email}`,
+        'limit(1)'
       ]);
       
-      if (userResponse.documents.length === 0) {
+      if (response.total === 0) {
         throw new Error('User not found in database');
       }
       
-      const userData = userResponse.documents[0] as User;
+      const userData = response.documents[0] as User;
       setUser(userData);
       
       // Store in localStorage for persistence
@@ -78,41 +94,40 @@ export const KijumbeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return true;
     } catch (error) {
       console.error('Login error:', error);
+      setError('Invalid email or password');
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const register = async (email: string, password: string, name: string, role: string = 'member'): Promise<boolean> => {
+  const register = async (email: string, password: string, name: string): Promise<boolean> => {
     try {
       setLoading(true);
+      setError(null);
       
       // Create account with Appwrite
-      await appwrite.createAccount(email, password, name);
+      await services.account.create('unique()', email, password, name);
       
       // Create user document in database
       const userData = {
         email,
         name,
-        role: role as 'member' | 'kiongozi' | 'admin' | 'superadmin',
-        isSuperAdmin: role === 'superadmin',
-        phone: '',
+        role: 'user' as const,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       
-      const createdUser = await appwrite.createDocument(COLLECTIONS.USERS, userData, [
-        `read("user:${email}")`,
-        `write("user:${email}")`
-      ]);
+      const response = await database.createDocument(COLLECTIONS.USERS, userData);
+      const newUser = response as User;
       
-      setUser(createdUser as User);
-      localStorage.setItem('kijumbe_user', JSON.stringify(createdUser));
+      setUser(newUser);
+      localStorage.setItem('kijumbe_user', JSON.stringify(newUser));
       
       return true;
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('Register error:', error);
+      setError('Registration failed');
       return false;
     } finally {
       setLoading(false);
@@ -121,7 +136,7 @@ export const KijumbeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const logout = async (): Promise<void> => {
     try {
-      await appwrite.deleteSessions();
+      await services.account.deleteSessions();
       setUser(null);
       localStorage.removeItem('kijumbe_user');
     } catch (error) {
@@ -133,13 +148,14 @@ export const KijumbeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!user) return;
     
     try {
-      const updatedUser = await appwrite.updateDocument(
+      const response = await database.updateDocument(
         COLLECTIONS.USERS,
         user.$id,
         { ...userData, updatedAt: new Date().toISOString() }
       );
       
-      setUser(updatedUser as User);
+      const updatedUser = response as User;
+      setUser(updatedUser);
       localStorage.setItem('kijumbe_user', JSON.stringify(updatedUser));
     } catch (error) {
       console.error('Update user error:', error);
@@ -151,65 +167,31 @@ export const KijumbeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!user) return;
     
     try {
-      const userResponse = await appwrite.getDocument(COLLECTIONS.USERS, user.$id);
-      setUser(userResponse as User);
-      localStorage.setItem('kijumbe_user', JSON.stringify(userResponse));
+      const response = await database.getDocument(COLLECTIONS.USERS, user.$id);
+      const refreshedUser = response as User;
+      setUser(refreshedUser);
+      localStorage.setItem('kijumbe_user', JSON.stringify(refreshedUser));
     } catch (error) {
       console.error('Refresh user error:', error);
     }
   };
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        setLoading(true);
-        
-        // Check if user is stored locally
-        const storedUser = localStorage.getItem('kijumbe_user');
-        if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          
-          // Verify session is still valid
-          try {
-            await appwrite.getAccount();
-            setUser(userData);
-          } catch (error) {
-            // Session expired, clear local storage
-            localStorage.removeItem('kijumbe_user');
-            setUser(null);
-          }
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
-  const value: KijumbeAuthContextType = {
+  const value = {
     user,
     loading,
-    isAuthenticated,
-    isMember,
-    isKiongozi,
-    isAdmin,
-    isSuperAdmin,
+    error,
     login,
     register,
     logout,
     updateUser,
-    refreshUser
+    refreshUser,
   };
 
   return (
-    <KijumbeAuthContext.Provider value={value}>
+    <AuthContext.Provider value={value}>
       {children}
-    </KijumbeAuthContext.Provider>
+    </AuthContext.Provider>
   );
 };
 
-export default KijumbeAuthContext;
+export default AuthContext;

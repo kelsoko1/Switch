@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { Search, UserPlus, Check, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { userDirectoryManager, type AppUser } from '../../lib/userDirectory';
+import { userDirectory, type AppUser } from '../../lib/userDirectory';
 import { contactManager } from '../../lib/contacts';
 
 interface UserDirectoryProps {
@@ -49,16 +49,16 @@ export const UserDirectory: FC<UserDirectoryProps> = ({
       setError('');
 
       // Get all users
-      const allUsers = await userDirectoryManager.getAllUsers();
+      const allUsers = await userDirectory.getAllUsers();
       
       // Filter out the current user
       const otherUsers = allUsers.filter(u => u.id !== user.$id);
       
       // Mark users that are already contacts
-      const usersWithContactStatus = await userDirectoryManager.markContacts(otherUsers, user.$id);
+      const markedUsers = await userDirectory.markContacts(otherUsers, user.$id);
       
-      setUsers(usersWithContactStatus);
-      setFilteredUsers(usersWithContactStatus);
+      setUsers(markedUsers);
+      setFilteredUsers(markedUsers);
     } catch (err) {
       console.error('Error loading users:', err);
       setError('Failed to load users. Please try again.');
