@@ -8,7 +8,12 @@ NC='\033[0m'
 
 echo -e "${YELLOW}Starting deployment to kijumbesmart.co.tz...${NC}"
 
-# 1. Build the application
+# 1. Install dependencies
+echo -e "${YELLOW}Installing dependencies...${NC}"
+npm install
+cd server && npm install && cd ..
+
+# 2. Build the application
 echo -e "${YELLOW}Building application...${NC}"
 npm run build
 
