@@ -15,8 +15,11 @@ RUN cd server && npm install
 # Copy source code
 COPY . .
 
-# Build frontend and server
+# Build frontend
 RUN npm run build
+
+# Build server
+RUN cd server && npm run build
 
 # Production stage
 FROM node:18-alpine

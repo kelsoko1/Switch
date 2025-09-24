@@ -8,14 +8,32 @@ NC='\033[0m'
 
 echo -e "${YELLOW}Starting deployment to kijumbesmart.co.tz...${NC}"
 
+# Function to check command status
+check_status() {
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}$1 failed!${NC}"
+        exit 1
+    fi
+}
+
 # 1. Install dependencies
 echo -e "${YELLOW}Installing dependencies...${NC}"
 npm install
-cd server && npm install && cd ..
+check_status "Frontend dependency installation"
+
+cd server
+npm install
+check_status "Server dependency installation"
+cd ..
 
 # 2. Build the application
-echo -e "${YELLOW}Building application...${NC}"
+echo -e "${YELLOW}Building frontend...${NC}"
 npm run build
+check_status "Frontend build"
+
+echo -e "${YELLOW}Building server...${NC}"
+cd server && npm run build && cd ..
+check_status "Server build"
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Build failed!${NC}"

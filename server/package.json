@@ -4,8 +4,9 @@
   "description": "Backend server for Switch application with wallet integration",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node dist/index.js",
     "dev": "nodemon index.js",
+    "build": "mkdir -p dist && cp -r *.js config middleware models routes utils dist/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
