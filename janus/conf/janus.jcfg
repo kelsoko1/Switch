@@ -1,0 +1,60 @@
+# General configuration for Janus
+general: {
+	configs_folder = "/usr/local/etc/janus"			# Configuration files folder
+	plugins_folder = "/usr/local/lib/janus/plugins"	# Plugins folder
+	transports_folder = "/usr/local/lib/janus/transports"	# Transports folder
+	events_folder = "/usr/local/lib/janus/events"		# Event handlers folder
+	debug_level = 4				# Debug/logging level, valid values are 0-7
+	debug_timestamps = true		# Whether to show a timestamp for each log line
+	debug_colors = true			# Whether colors should be disabled in the log
+	admin_secret = "janusoverlord"	# String that all Janus requests must contain
+	api_secret = "janusrocks"		# String that all Janus requests must contain
+	token_auth = false			# Enable token-based authentication
+	token_auth_secret = "janus"	# Secret for token generation
+	no_webrtc_encryption = false	# Whether to disable WebRTC encryption
+}
+
+# Media-related settings
+media: {
+	ipv6 = false					# Whether IPv6 support should be enabled
+	max_nack_queue = 500			# Maximum size of the NACK queue per user
+	rtp_port_range = "10000-60000"	# Range of ports to use for RTP/RTCP
+	dtls_mtu = 1200				# Maximum size of DTLS packets to send
+}
+
+# NAT-related settings
+nat: {
+	ice_lite = false				# Whether to enable the ICE Lite mode
+	ice_tcp = false				# Whether to enable ICE-TCP or not
+	nice_debug = false			# Whether to enable libnice debugging
+	full_trickle = true			# Whether to enable full-trickle
+	stun_server = "stun.l.google.com"	# STUN server to use, if needed
+	stun_port = 19302			# STUN port to use
+	nice_debug = false			# Whether to enable libnice debugging
+}
+
+# Plugins to enable
+plugins: {
+	disable = {
+		"libjanus_echotest.so",
+		"libjanus_recordplay.so",
+		"libjanus_streaming.so",
+		"libjanus_textroom.so",
+		"libjanus_voicemail.so"
+	}
+}
+
+# Transport-related settings
+transports: {
+	disable = {
+		"libjanus_rabbitmq.so",
+		"libjanus_mqtt.so",
+		"libjanus_pfunix.so"
+	}
+}
+
+# Event handlers
+events: {
+	broadcast = false				# Whether to enable broadcasting of events
+	disable = "libjanus_sampleevh.so"	# Event handlers to disable
+}

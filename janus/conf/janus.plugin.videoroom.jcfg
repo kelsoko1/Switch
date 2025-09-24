@@ -1,0 +1,26 @@
+general: {
+	admin_key = "supersecret"		# If set, rooms can be created via API only
+									# if this key is provided in the request
+	events = true					# Whether events should be sent to event
+									# handlers
+	notify_joining = true			# Whether to notify all participants when a
+									# new participant joins the room
+}
+
+room-1234: {
+	description = "Switch Video Room"
+	secret = "switchsecret"			# Optional password needed to join
+	pin = "switchpin"				# Optional password needed to modify
+	publishers = 6					# Maximum number of concurrent senders
+	bitrate = 512000				# Maximum bitrate for publishers (bps)
+	fir_freq = 10					# Send a FIR to publishers every 10 seconds
+	audiocodec = "opus"				# Codec to use for audio
+	videocodec = "vp8"				# Codec to use for video
+	record = false					# Whether the room should be recorded
+	notify_joining = true			# Whether to notify all participants when a
+									# new participant joins the room
+	require_pvtid = false			# Whether subscriptions are required to
+									# provide a valid private_id
+	notify_leaving = true			# Whether to notify all participants when a
+									# participant leaves the room
+}

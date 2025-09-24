@@ -17,10 +17,16 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
     port: 2025,
-    host: true,
+    strictPort: true,
     proxy: {
-      '/api': 'http://localhost:2025',
+      '/api': {
+        target: 'https://kijumbesmart.co.tz',
+        changeOrigin: true,
+        secure: true,
+        ws: true
+      },
     },
   },
   build: {

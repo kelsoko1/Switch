@@ -171,13 +171,8 @@ async function initializeClient() {
       .setEndpoint(workingEndpoint)
       .setProject(projectId);
 
-    // Only set API key if it exists (not needed for all operations)
-    if (APPWRITE_API_KEY) {
-      client.setSession(APPWRITE_API_KEY);
-      console.log('✅ Appwrite client initialized with API key');
-    } else {
-      console.warn('⚠️ Appwrite client initialized without API key. Some operations may be limited.');
-    }
+    // API key is not needed for browser clients
+    console.log('✅ Appwrite client initialized for browser')
     
     if (connected) {
       console.log('✅ Appwrite client initialized successfully with working endpoint');

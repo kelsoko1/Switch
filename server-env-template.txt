@@ -13,7 +13,7 @@ JWT_SECRET=your-super-secret-jwt-key-change-in-production
 JWT_EXPIRES_IN=24h
 
 # Frontend URL (for CORS)
-FRONTEND_URL=https://kijumbesmart.co.tz
+FRONTEND_URL=http://93.127.203.151:2025
 
 # Collection IDs
 COLLECTION_USERS=users

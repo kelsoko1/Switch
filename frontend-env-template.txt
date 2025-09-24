@@ -1,7 +1,7 @@
 # Server Configuration
 VITE_PORT=2025
 VITE_NODE_ENV=production
-VITE_FRONTEND_URL=https://kijumbesmart.co.tz
+VITE_FRONTEND_URL=http://93.127.203.151:2025
 
 # Appwrite Configuration
 VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1

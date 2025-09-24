@@ -53,8 +53,20 @@ const errorHandler = (err, req, res, next) => {
     error = {
       success: false,
       message: err.message,
-      statusCode: err.code >= 400 && err.code < 600 ? err.code : 500
+      statusCode: err.code >= 400 && err.code < 600 ? err.code : 500,
+      type: 'appwrite_error',
+      code: err.code,
+      ...(process.env.NODE_ENV === 'development' && { details: err })
     };
+  }
+
+  // Handle specific Appwrite error codes
+  if (err.code === 401) {
+    error.message = 'Authentication failed. Please log in again.';
+  } else if (err.code === 403) {
+    error.message = 'You do not have permission to perform this action.';
+  } else if (err.code === 404) {
+    error.message = 'The requested resource was not found.';
   }
 
   res.status(error.statusCode || 500).json(error);

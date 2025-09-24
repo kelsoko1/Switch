@@ -12,7 +12,7 @@ const logFormat = printf(({ level, message, timestamp, ...metadata }) => {
   return msg;
 });
 
-// Create logger instance
+// Create logger instance with console transport first
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: combine(
@@ -22,25 +22,31 @@ const logger = winston.createLogger({
     logFormat
   ),
   transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' })
+    new winston.transports.Console()
   ],
-  exceptionHandlers: [
-    new winston.transports.File({ filename: 'logs/exceptions.log' })
-  ],
-  rejectionHandlers: [
-    new winston.transports.File({ filename: 'logs/rejections.log' })
-  ]
+  exitOnError: false // Don't crash on exception
 });
 
-// Create logs directory if it doesn't exist
+// Try to set up file logging if possible
 const fs = require('fs');
 const path = require('path');
-const logDir = 'logs';
+const logDir = path.join(__dirname, '..', 'logs');
 
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir);
+try {
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+
+  // Add file transports only after ensuring directory exists
+  logger.add(new winston.transports.File({ filename: path.join(logDir, 'error.log'), level: 'error' }));
+  logger.add(new winston.transports.File({ filename: path.join(logDir, 'combined.log') }));
+
+  // Add exception and rejection handlers
+  logger.exceptions.handle(new winston.transports.File({ filename: path.join(logDir, 'exceptions.log') }));
+  logger.rejections.handle(new winston.transports.File({ filename: path.join(logDir, 'rejections.log') }));
+} catch (error) {
+  console.error('Failed to set up file logging:', error);
+  // Continue with console-only logging
 }
 
 // Create a stream for morgan to use

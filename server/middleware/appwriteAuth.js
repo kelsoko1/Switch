@@ -23,18 +23,17 @@ const authenticate = async (req, res, next) => {
             req.appwrite = req.appwrite || {};
             req.appwrite.jwt = token;
             
-            // Get the current session
-            const session = await account.getSession('current');
-            
-            if (!session || session.userId !== req.userId) {
+            // Get the current session using the JWT token
+            try {
+                const session = await account.get();
+                req.userId = session.$id;
+            } catch (error) {
+                logger.error('Failed to get user session:', error);
                 return res.status(401).json({
                     success: false,
                     message: 'Invalid or expired session'
                 });
             }
-            
-            // Attach user ID to request
-            req.userId = session.userId;
             
             next();
         } catch (error) {

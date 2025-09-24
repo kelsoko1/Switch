@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"cd server && npm run dev\"",
+    "deploy:prepare": "node deploy.js",
+    "deploy:production": "npm run deploy:prepare && npm run build",
     "dev:frontend": "vite",
     "dev:backend": "cd server && npm run dev",
     "build": "vite build && cd server && npm install",
