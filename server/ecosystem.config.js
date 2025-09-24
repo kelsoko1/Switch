@@ -1,0 +1,41 @@
+module.exports = {
+  apps: [{
+    name: 'switch-server',
+    script: './dist/index.js',
+    instances: 'max',
+    exec_mode: 'cluster',
+    env_production: {
+      NODE_ENV: 'production',
+      PORT: 2025,
+      FRONTEND_URL: 'https://kijumbesmart.co.tz',
+      APPWRITE_ENDPOINT: 'https://fra.cloud.appwrite.io/v1',
+      APPWRITE_PROJECT_ID: '68ac2652001ca468e987',
+      APPWRITE_DATABASE_ID: '68ac3f000002c33d8048',
+      APPWRITE_API_KEY: 'standard_d1aac338e34f0674a53aa08d7bd5e0129984b8753341dea5a016f628614092f6b781008906aecb5fbc805088799b0aff46f108a35d77828ecef11e9b5b36ed0fc783a53f0bfafed81cf0a78ee78b21cc1c5151ac392cd678240bbb86b04db612737c050a1e35ceff6fbc4b4e4d05e67bc4948cf455394dc26ca972cba86fe498',
+      XMPP_SERVER: 'wss://kijumbesmart.co.tz:5280/ws',
+      XMPP_DOMAIN: 'kijumbesmart.co.tz',
+      EJABBERD_WS_URL: 'wss://kijumbesmart.co.tz:5280/ws',
+      EJABBERD_DOMAIN: 'kijumbesmart.co.tz',
+      EJABBERD_API_URL: 'https://kijumbesmart.co.tz:5280/api',
+      USE_JANUS: 'true',
+      JANUS_URL: 'wss://kijumbesmart.co.tz:8188',
+      JANUS_JS_URL: 'https://kijumbesmart.co.tz:8088/janus.js',
+      SELCOM_BASE_URL: 'https://apigw.selcommobile.com/v1',
+      SELCOM_API_KEY: 'TILL61099541-971371e3edeb4690b35dea06ca6b1e78',
+      SELCOM_API_SECRET: '77faf6-fa1b4c-443f8d-aa6f91-b37939-59',
+      SELCOM_MERCHANT_ID: 'TILL61099541',
+      BASE_URL: 'https://kijumbesmart.co.tz'
+    },
+    max_memory_restart: '1G',
+    error_file: 'logs/error.log',
+    out_file: 'logs/output.log',
+    time: true,
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    watch: false,
+    merge_logs: true,
+    log_type: 'json',
+    autorestart: true,
+    restart_delay: 4000,
+    max_restarts: 10
+  }]
+};

@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon index.js",
-    "build": "mkdir -p dist && cp -r *.js config middleware models routes utils dist/",
+    "build": "mkdir -p dist && for dir in config middleware routes utils; do if [ -d \"$dir\" ]; then cp -r \"$dir\" dist/; fi; done && cp *.js dist/ 2>/dev/null || true",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
