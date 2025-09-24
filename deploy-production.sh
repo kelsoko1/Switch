@@ -1,44 +1,63 @@
 #!/bin/bash
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m'
-
-echo -e "${YELLOW}Starting deployment to kijumbesmart.co.tz...${NC}"
+NC='\033[0m' # No Color
 
 # Function to check command status
-check_status() {
+check_command() {
     if [ $? -ne 0 ]; then
-        echo -e "${RED}$1 failed!${NC}"
+        echo -e "${RED}❌ Error: $1${NC}"
         exit 1
+    else
+        echo -e "${GREEN}✅ Success: $1${NC}"
     fi
 }
 
-# 1. Install dependencies
-echo -e "${YELLOW}Installing dependencies...${NC}"
+echo -e "${YELLOW}🚀 Starting deployment to kijumbesmart.co.tz...${NC}"
+
+# Create required directories
+echo -e "${YELLOW}📁 Creating required directories...${NC}"
+mkdir -p nginx/conf.d nginx/ssl
+mkdir -p ejabberd/{conf,database,logs}
+mkdir -p janus/conf
+check_command "Created required directories"
+
+# Create Docker network
+echo -e "${YELLOW}🌐 Setting up Docker network...${NC}"
+docker network create nginx-proxy-network || true
+check_command "Set up Docker network"
+
+# Clean up previous build artifacts
+echo -e "${YELLOW}🧹 Cleaning up previous builds...${NC}"
+rm -rf dist server/dist
+check_command "Cleaned up previous build artifacts"
+
+# Install dependencies
+echo -e "${YELLOW}📦 Installing dependencies...${NC}"
 npm install
-check_status "Frontend dependency installation"
+check_command "Installed frontend dependencies"
 
 cd server
 npm install
-check_status "Server dependency installation"
+check_command "Installed server dependencies"
 cd ..
 
-# 2. Build the application
-echo -e "${YELLOW}Building frontend...${NC}"
+# Build the application
+echo -e "${YELLOW}🏗️ Building application...${NC}"
 npm run build
-check_status "Frontend build"
+check_command "Built frontend"
 
-echo -e "${YELLOW}Building server...${NC}"
+echo -e "${YELLOW}🏗️ Building server...${NC}"
 cd server && npm run build && cd ..
-check_status "Server build"
+check_command "Built server"
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Build failed!${NC}"
-    exit 1
-fi
+# Stop existing containers
+echo -e "${YELLOW}🛑 Stopping existing containers...${NC}"
+docker-compose down
+check_command "Stopped existing containers"
 
 # 2. Create necessary directories
 echo -e "${YELLOW}Creating necessary directories...${NC}"
@@ -66,18 +85,27 @@ if [ $? -ne 0 ]; then
 fi
 
 # 6. Wait for services to be ready
-echo -e "${YELLOW}Waiting for services to be ready...${NC}"
+echo -e "${YELLOW}⌛ Waiting for services to start...${NC}"
 sleep 10
 
-# 7. Check service status
-echo -e "${YELLOW}Checking service status...${NC}"
+# Check container status
+echo -e "${YELLOW}🔍 Checking container status...${NC}"
 docker-compose ps
 
-# 8. Show logs
-echo -e "${YELLOW}Recent logs:${NC}"
-docker-compose logs --tail=20
+# Show logs
+echo -e "${YELLOW}📜 Recent logs:${NC}"
+docker-compose logs --tail=50
 
-echo -e "${GREEN}Deployment completed!${NC}"
-echo -e "${GREEN}Application is now available at https://kijumbesmart.co.tz${NC}"
-echo -e "${YELLOW}Please check the logs for any errors:${NC}"
-echo "  docker-compose logs -f"
+echo -e "${GREEN}✨ Deployment complete! The application should be accessible at:${NC}"
+echo -e "   - ${YELLOW}http://93.127.203.151:2025${NC}"
+echo -e "   - ${YELLOW}https://kijumbesmart.co.tz${NC} (once DNS propagates)"
+
+echo -e "
+${YELLOW}📝 To monitor logs, run:${NC}"
+echo "   docker-compose logs -f"
+
+echo -e "
+${RED}❗ Don't forget to:${NC}"
+echo "   1. Check if DNS is properly configured"
+echo "   2. Verify SSL certificate if using HTTPS"
+echo "   3. Test all features (auth, real-time, etc.)"

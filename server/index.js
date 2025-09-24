@@ -36,13 +36,7 @@ try {
   console.log('Setting up middleware...');
 
   // Get allowed origins from environment or use defaults
-  const allowedOrigins = [
-    process.env.FRONTEND_URL,
-    'http://localhost:2025',
-    'http://93.127.203.151:2025',
-    'http://kijumbesmart.co.tz'
-  ].filter(Boolean);
-
+  const allowedOrigins = (process.env.CORS_ORIGIN || 'http://93.127.203.151:2025,https://kijumbesmart.co.tz').split(',');
   console.log('Allowed origins:', allowedOrigins);
 
   app.use(cors({
@@ -53,9 +47,11 @@ try {
         callback(new Error('Not allowed by CORS'));
       }
     },
+    methods: process.env.CORS_METHODS?.split(',') || ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: process.env.CORS_ALLOWED_HEADERS?.split(',') || ['Content-Type', 'Authorization', 'X-Appwrite-Project', 'X-Appwrite-Key'],
+    exposedHeaders: process.env.CORS_EXPOSED_HEADERS?.split(',') || ['X-Fallback-Cookies'],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Appwrite-Project', 'X-Appwrite-Key']
+    maxAge: parseInt(process.env.CORS_MAX_AGE || '86400')
   }));
   console.log('CORS middleware set up');
 
