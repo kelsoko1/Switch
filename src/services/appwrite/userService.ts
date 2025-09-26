@@ -1,6 +1,6 @@
 import { AppwriteService } from './appwriteService';
 import { COLLECTIONS } from '@/lib/constants';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 export interface AppwriteUser {
   $id: string;
@@ -37,6 +37,62 @@ export class UserService extends AppwriteService {
       }
     } catch (error) {
       console.error('Error getting current user:', error);
+      throw error;
+    }
+  }
+
+  // Search users by name or email
+  async searchUsers(query: string, limit: number = 10): Promise<AppwriteUser[]> {
+    try {
+      // Search in users collection
+      const response = await this.listDocuments(
+        COLLECTIONS.USERS,
+        [
+          Query.search('name', query),
+          Query.limit(limit)
+        ]
+      );
+
+      // Manually map the response to AppwriteUser type
+      return response.documents.map(doc => ({
+        $id: doc.$id,
+        name: doc.name,
+        email: doc.email,
+        phone: doc.phone,
+        emailVerification: doc.emailVerification || false,
+        phoneVerification: doc.phoneVerification || false,
+        prefs: doc.prefs || {}
+      } as AppwriteUser));
+    } catch (error) {
+      console.error('Error searching users:', error);
+      throw error;
+    }
+  }
+
+  // Get users by IDs
+  async getUsersByIds(userIds: string[]): Promise<AppwriteUser[]> {
+    if (!userIds.length) return [];
+    
+    try {
+      const response = await this.listDocuments(
+        COLLECTIONS.USERS,
+        [
+          Query.equal('$id', userIds)
+        ]
+      );
+
+      // Manually map the response to AppwriteUser type
+      return response.documents.map(doc => ({
+        $id: doc.$id,
+        name: doc.name,
+        email: doc.email,
+        phone: doc.phone,
+        emailVerification: doc.emailVerification || false,
+        phoneVerification: doc.phoneVerification || false,
+        prefs: doc.prefs || {}
+      } as AppwriteUser));
+    } catch (error) {
+      console.error('Error getting users by IDs:', error);
       throw error;
     }
   }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ContributeModal from '../../components/kijumbe/ContributeModal';
 import LoanModal from '../../components/kijumbe/LoanModal';
@@ -8,15 +8,16 @@ import {
   ArrowLeft, 
   Users, 
   DollarSign, 
-  Calendar, 
   Plus, 
-  Minus, 
   TrendingUp,
   Settings,
   MessageCircle,
   UserPlus,
   AlertCircle
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { groupService, KijumbeGroup } from '../../services/appwrite/groupService';
+import { format } from 'date-fns';
 
 interface GroupMember {
   $id: string;
@@ -32,6 +33,7 @@ interface GroupMember {
 interface GroupTransaction {
   $id: string;
   userId: string;
+  groupId?: string;
   type: 'contribution' | 'loan' | 'repayment' | 'payout';
   amount: number;
   description: string;
@@ -67,97 +69,60 @@ const GroupDetails = () => {
   const [showLoanModal, setShowLoanModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [notifications, setNotifications] = useState<string[]>([]);
+  const { user } = useAuth();
+
+  // Helper function to map KijumbeGroup to GroupDetails
+  const mapKijumbeToGroupDetails = (kijumbeGroup: KijumbeGroup): GroupDetails => {
+    return {
+      $id: kijumbeGroup.$id,
+      name: kijumbeGroup.name,
+      description: kijumbeGroup.description || '',
+      members: (kijumbeGroup.members || []).map(member => ({
+        $id: member.user_id,
+        name: member.user?.name || 'Mwanachama',
+        email: member.user?.email || '',
+        role: member.role === 'kiongozi' ? 'admin' : 'member',
+        contribution: 0, // This would come from contributions in a real app
+        loans: 0, // This would come from loans in a real app
+        joinedAt: member.joined_at,
+        avatar: member.user?.phone ? `https://ui-avatars.com/api/?name=${encodeURIComponent(member.user.name || 'U')}&background=random` : undefined
+      })),
+      totalAmount: 0, // This would be calculated from contributions in a real app
+      contributionAmount: kijumbeGroup.contribution_amount || 0,
+      nextMeeting: format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'), // Next week as an example
+      status: kijumbeGroup.status,
+      createdBy: kijumbeGroup.kiongozi_id,
+      createdAt: kijumbeGroup.created_at,
+      myRole: kijumbeGroup.kiongozi_id === user?.$id ? 'admin' : 'member',
+      myContribution: 0, // This would come from user's contributions in a real app
+      myLoans: 0 // This would come from user's loans in a real app
+    };
+  };
 
   useEffect(() => {
-    // Simulate loading group data
-    setTimeout(() => {
-      setGroup({
-        $id: groupId || '',
-        name: 'Vikundi vya Kijumbe',
-        description: 'Mikopo ya Kikundi cha Kijumbe',
-        members: [
-          {
-            $id: 'member_1',
-            name: 'John Mwalimu',
-            email: 'john@example.com',
-            role: 'admin',
-            contribution: 75000,
-            loans: 0,
-            joinedAt: '2024-01-01',
-          },
-          {
-            $id: 'member_2',
-            name: 'Mary Mwamba',
-            email: 'mary@example.com',
-            role: 'member',
-            contribution: 50000,
-            loans: 25000,
-            joinedAt: '2024-01-05',
-          },
-          {
-            $id: 'member_3',
-            name: 'Peter Kipande',
-            email: 'peter@example.com',
-            role: 'member',
-            contribution: 60000,
-            loans: 0,
-            joinedAt: '2024-01-10',
-          },
-        ],
-        totalAmount: 450000,
-        contributionAmount: 25000,
-        nextMeeting: '2024-01-15',
-        status: 'active',
-        createdBy: 'member_1',
-        createdAt: '2024-01-01',
-        myRole: 'admin',
-        myContribution: 75000,
-        myLoans: 0,
-      });
-
-      setTransactions([
-        {
-          $id: 'tx_1',
-          userId: 'member_1',
-          type: 'contribution',
-          amount: 25000,
-          description: 'Mchango wa mwezi wa Januari',
-          status: 'completed',
-          createdAt: '2024-01-01',
-          user: {
-            $id: 'member_1',
-            name: 'John Mwalimu',
-            email: 'john@example.com',
-            role: 'admin',
-            contribution: 75000,
-            loans: 0,
-            joinedAt: '2024-01-01',
-          },
-        },
-        {
-          $id: 'tx_2',
-          userId: 'member_2',
-          type: 'loan',
-          amount: 50000,
-          description: 'Mikopo ya haraka',
-          status: 'completed',
-          createdAt: '2024-01-05',
-          user: {
-            $id: 'member_2',
-            name: 'Mary Mwamba',
-            email: 'mary@example.com',
-            role: 'member',
-            contribution: 50000,
-            loans: 25000,
-            joinedAt: '2024-01-05',
-          },
-        },
-      ]);
-
-      setIsLoading(false);
-    }, 1000);
+    const loadGroupData = async () => {
+      try {
+        setIsLoading(true);
+        
+        if (groupId) {
+          // Load group data from the service
+          const kijumbeGroup = await groupService.getGroup(groupId);
+          const groupDetails = mapKijumbeToGroupDetails(kijumbeGroup);
+          setGroup(groupDetails);
+          
+          // In a real app, you would load transactions here
+          setTransactions([]);
+        }
+      } catch (error) {
+        console.error('Error loading group data:', error);
+        setNotifications(prev => [...prev, 'Failed to load group data']);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadGroupData();
   }, [groupId]);
-
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('sw-TZ', {
@@ -196,51 +161,94 @@ const GroupDetails = () => {
       });
     }
 
-    const newTransaction: GroupTransaction = {
+    const newTransaction = {
       $id: `tx_${Date.now()}`,
       groupId: group?.$id || '',
       userId: 'current_user',
-      type: 'contribution',
+      type: 'contribution' as const,
       amount,
       description,
-      status: 'completed',
+      status: 'completed' as const,
       createdAt: new Date().toISOString(),
-    };
+    } satisfies GroupTransaction;
     
     setTransactions(prev => [newTransaction, ...prev]);
     addNotification(`Umeongeza mchango wa ${formatCurrency(amount)}`);
   };
 
   const handleRequestLoan = async (amount: number, purpose: string, repaymentPeriod: number) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    if (group) {
-      setGroup({
-        ...group,
-        myLoans: group.myLoans + amount,
-      });
-    }
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      if (group) {
+        // In a real app, this would be an API call to create a loan request
+        console.log(`Requesting loan of ${amount} for ${purpose} with ${repaymentPeriod} days repayment period`);
+        
+        // Update local state
+        setGroup({
+          ...group,
+          myLoans: group.myLoans + amount,
+        });
 
-    const newTransaction: GroupTransaction = {
-      $id: `tx_${Date.now()}`,
-      groupId: group?.$id || '',
-      userId: 'current_user',
-      type: 'loan',
-      amount,
-      description: `Mikopo: ${purpose}`,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
-    
-    setTransactions(prev => [newTransaction, ...prev]);
-    addNotification(`Umeomba mikopo ya ${formatCurrency(amount)} - Inasubiri idhini`);
+        const newTransaction = {
+          $id: `tx_${Date.now()}`,
+          groupId: group.$id,
+          userId: user?.$id || 'current_user',
+          type: 'loan' as const,
+          amount,
+          description: `Mikopo: ${purpose} (Muda wa malipo: siku ${repaymentPeriod})`,
+          status: 'pending' as const,
+          createdAt: new Date().toISOString(),
+          user: user ? {
+            $id: user.$id,
+            name: user.name || 'Mimi',
+            email: user.email || '',
+            role: 'member',
+            contribution: 0,
+            loans: amount,
+            joinedAt: new Date().toISOString()
+          } : undefined
+        } satisfies GroupTransaction;
+        
+        setTransactions(prev => [newTransaction, ...prev]);
+        addNotification(`Umeomba mikopo ya ${formatCurrency(amount)} - Inasubiri idhini`);
+      }
+    } catch (error) {
+      console.error('Error requesting loan:', error);
+      addNotification(`Hitilafu katika kuomba mkopo: ${error instanceof Error ? error.message : 'Tafadhali jaribu tena'}`);
+    }
   };
 
-  const handleInviteMember = async (email: string, phone: string, message: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    addNotification(`Mwaliko umetumwa kwa ${email || phone}`);
+  const handleInviteMember = async (userId: string, email: string, phone: string, message: string) => {
+    try {
+      if (!groupId) throw new Error('Group ID is required');
+      
+      // If we have a user ID, add them directly to the group
+      if (userId) {
+        await groupService.addGroupMember(groupId, userId, 'member');
+        setNotifications(prev => [...prev, `Mwanachama ameongezwa kikundini`]);
+      } else {
+        // For non-users, send an invite
+        // This would typically send an email or SMS with an invite link
+        console.log('Sending invite to:', { email, phone, message });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Add notification
+        setNotifications(prev => [...prev, `Mwaliko umetumwa kwa ${email || phone}`]);
+      }
+      
+      // Refresh group data
+      if (group) {
+        const updatedKijumbeGroup = await groupService.getGroup(groupId);
+        const updatedGroup = mapKijumbeToGroupDetails(updatedKijumbeGroup);
+        setGroup(updatedGroup);
+      }
+    } catch (error: any) {
+      console.error('Error inviting member:', error);
+      setNotifications(prev => [...prev, `Hitilafu: ${error.message}`]);
+      throw error;
+    }
   };
 
   if (isLoading) {
@@ -519,6 +527,8 @@ const GroupDetails = () => {
         onClose={() => setShowInviteModal(false)}
         onInvite={handleInviteMember}
         groupName={group?.name || ''}
+        groupId={groupId || ''}
+        currentUserId={user?.$id || ''}
       />
     </div>
   );

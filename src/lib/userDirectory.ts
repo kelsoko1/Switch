@@ -1,11 +1,15 @@
 import { Models, Query } from 'appwrite';
 import { database, COLLECTIONS } from './appwrite';
 
-type AppwriteUser = Models.Document & {
-  name?: string;
-  email?: string;
+interface AppwriteUser extends Models.Document {
+  name: string;
+  email: string;
   avatar?: string;
-};
+  emailVerification: boolean;
+  phoneVerification: boolean;
+  status: boolean;
+  $createdAt: string;
+}
 
 type AppwriteGroup = Models.Document & {
   members: string[];
@@ -21,6 +25,9 @@ export interface AppUser {
   avatar?: string;
   createdAt: string;
   isContact?: boolean;
+  emailVerification?: boolean;
+  phoneVerification?: boolean;
+  status?: boolean; // User status (active/inactive)
 }
 
 // Cache
@@ -29,6 +36,56 @@ let lastFetchTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export class UserDirectoryManager {
+  /**
+   * Get all users
+   * @param forceRefresh Force refresh from server
+   */
+  /**
+   * Get all verified users
+   * @param forceRefresh Force refresh from server
+   */
+  async getVerifiedUsers(forceRefresh = false): Promise<AppUser[]> {
+    const now = Date.now();
+    
+    // Return cached users if available and not expired
+    if (!forceRefresh && usersCache && usersCache.length > 0 && (now - lastFetchTime) < CACHE_TTL) {
+      return [...usersCache].filter(user => user.emailVerification);
+    }
+    
+    try {
+      // Get verified users
+      const response = await database.listDocuments(
+        COLLECTIONS.USERS,
+        [
+          Query.equal('emailVerification', true),
+          Query.equal('status', true)
+        ]
+      ) as Models.DocumentList<AppwriteUser>;
+      
+      if (response.total === 0) {
+        return [];
+      }
+
+      // Map to AppUser format
+      usersCache = response.documents.map((doc) => ({
+        id: doc.$id,
+        name: doc.name || 'Unknown User',
+        email: doc.email,
+        avatar: doc.avatar,
+        emailVerification: doc.emailVerification,
+        phoneVerification: doc.phoneVerification,
+        status: doc.status,
+        createdAt: doc.$createdAt || new Date().toISOString()
+      }));
+      
+      lastFetchTime = now;
+      return usersCache.filter(user => user.emailVerification);
+    } catch (error) {
+      console.error('Error fetching verified users:', error);
+      throw error;
+    }
+  }
+
   /**
    * Get all users
    * @param forceRefresh Force refresh from server
@@ -42,13 +99,13 @@ export class UserDirectoryManager {
     }
     
     try {
-      const response = await database.listDocuments(COLLECTIONS.USERS);
+      const response = await database.listDocuments(COLLECTIONS.USERS) as Models.DocumentList<AppwriteUser>;
       
       if (response.total === 0) {
         return [];
       }
 
-      usersCache = response.documents.map((doc: Models.Document) => ({
+      usersCache = response.documents.map((doc) => ({
         id: doc.$id,
         name: (doc as AppwriteUser).name || 'Unknown User',
         email: (doc as AppwriteUser).email || '',

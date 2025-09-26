@@ -1,6 +1,38 @@
 {
     "projectId": "68ac2652001ca468e987",
     "projectName": "kijumbe",
+    "storage": [
+        {
+            "$id": "status_media",
+            "name": "Status Media",
+            "enabled": true,
+            "maximumFileSize": 52428800,
+            "allowedFileExtensions": ["jpg", "jpeg", "png", "gif", "mp4", "mov", "webm"],
+            "encryption": false,
+            "antivirus": true,
+            "fileSecurity": false
+        },
+        {
+            "$id": "profile_images",
+            "name": "Profile Images",
+            "enabled": true,
+            "maximumFileSize": 10485760,
+            "allowedFileExtensions": ["jpg", "jpeg", "png", "gif"],
+            "encryption": false,
+            "antivirus": true,
+            "fileSecurity": false
+        },
+        {
+            "$id": "group_images",
+            "name": "Group Images",
+            "enabled": true,
+            "maximumFileSize": 10485760,
+            "allowedFileExtensions": ["jpg", "jpeg", "png", "gif"],
+            "encryption": false,
+            "antivirus": true,
+            "fileSecurity": false
+        }
+    ],
     "databases": [
         {
             "$id": "68ac3f000002c33d8048",

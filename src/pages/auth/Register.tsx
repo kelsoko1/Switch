@@ -47,17 +47,17 @@ const Register = () => {
           
           toast({
             title: 'Registration Successful',
-            description: 'Your account has been created successfully.',
+            description: 'Your account has been created successfully. Please log in to continue.',
           });
           
-          // Redirect to home page
-          navigate('/');
+          // Redirect to login page
+          navigate('/auth/login');
         } catch (phoneErr) {
           console.error('Error updating phone number:', phoneErr);
           // Continue even if phone update fails, since the account was created
           toast({
             title: 'Registration Successful',
-            description: 'Your account was created, but we couldn\'t save your phone number. You can update it in your profile settings.',
+            description: 'Your account was created. Please log in to continue. You can update your phone number in your profile settings later.',
             variant: 'default',
           });
           navigate('/');

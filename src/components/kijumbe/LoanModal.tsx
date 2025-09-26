@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, TrendingUp, AlertCircle, Check, DollarSign } from 'lucide-react';
+import { X, TrendingUp, AlertCircle, DollarSign } from 'lucide-react';
 import { formatCurrency, validateCurrencyInput, LOAN_AMOUNTS } from '../../utils/currency';
 
 interface LoanModalProps {
@@ -21,23 +21,26 @@ const LoanModal: React.FC<LoanModalProps> = ({
 }) => {
   const [amount, setAmount] = useState('');
   const [purpose, setPurpose] = useState('');
-  const [repaymentPeriod, setRepaymentPeriod] = useState('3');
+  const [repaymentPeriod, setRepaymentPeriod] = useState<number>(3);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const quickAmounts = LOAN_AMOUNTS;
   const repaymentPeriods = [
-    { value: '1', label: 'Mwezi 1' },
-    { value: '3', label: 'Miezi 3' },
-    { value: '6', label: 'Miezi 6' },
-    { value: '12', label: 'Miezi 12' },
-  ];
+    { value: 1, label: 'Mwezi 1' },
+    { value: 3, label: 'Miezi 3' },
+    { value: 6, label: 'Miezi 6' },
+    { value: 12, label: 'Miezi 12' },
+  ] as const;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    const validation = validateCurrencyInput(amount, 10000, maxLoanAmount);
+    const validation = validateCurrencyInput(amount, { 
+      min: 10000, 
+      max: maxLoanAmount 
+    });
     if (!validation.isValid) {
       setError(validation.error || 'Kiasi si sahihi');
       return;
@@ -56,10 +59,10 @@ const LoanModal: React.FC<LoanModalProps> = ({
 
     setIsLoading(true);
     try {
-      await onRequestLoan(amountNum, purpose, parseInt(repaymentPeriod));
+      await onRequestLoan(amountNum, purpose, repaymentPeriod);
       setAmount('');
       setPurpose('');
-      setRepaymentPeriod('3');
+      setRepaymentPeriod(3);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Imeshindwa kuomba mikopo');
@@ -169,9 +172,9 @@ const LoanModal: React.FC<LoanModalProps> = ({
             </label>
             <select
               value={repaymentPeriod}
-              onChange={(e) => setRepaymentPeriod(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              required
+              onChange={(e) => setRepaymentPeriod(Number(e.target.value))}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={isLoading}
             >
               {repaymentPeriods.map((period) => (
                 <option key={period.value} value={period.value}>

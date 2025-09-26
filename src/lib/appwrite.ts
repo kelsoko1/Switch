@@ -1,10 +1,12 @@
 import { Client, Account, Databases, Storage, Teams, Avatars, ID, Models, AppwriteException } from 'appwrite';
 
+import { env } from '../config/env';
+
 // Appwrite Configuration
 const config = {
-    endpoint: 'https://fra.cloud.appwrite.io/v1',
-    projectId: '68ac2652001ca468e987',
-    databaseId: '68ac3f000002c33d8048'
+    endpoint: env.APPWRITE_ENDPOINT,
+    projectId: env.APPWRITE_PROJECT_ID,
+    databaseId: env.APPWRITE_DATABASE_ID
 } as const;
 
 // Initialize Appwrite Client

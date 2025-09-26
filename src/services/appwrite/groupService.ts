@@ -61,6 +61,120 @@ export class GroupService extends AppwriteService {
     super();
   }
 
+  /**
+   * Get group by ID
+   */
+  async getGroup(groupId: string): Promise<KijumbeGroup> {
+    try {
+      if (!groupId) {
+        throw new Error('Group ID is required');
+      }
+
+      // Get group data
+      const groupDoc = await this.getDocument(COLLECTIONS.GROUPS, groupId);
+      
+      // Get group members
+      const membersResponse = await this.listDocuments(COLLECTIONS.GROUP_MEMBERS, [
+        Query.equal('group_id', groupId),
+        Query.limit(100)
+      ]);
+
+      // Get user details for each member
+      const memberIds = membersResponse.documents.map((m: any) => m.user_id);
+      const usersResponse = memberIds.length > 0 ? await this.listDocuments(COLLECTIONS.USERS, [
+        Query.equal('$id', memberIds)
+      ]) : { documents: [] };
+
+      // Map members with user data
+      const membersWithUserData = membersResponse.documents.map((member: any) => {
+        const userDoc = usersResponse.documents.find((u: any) => u.$id === member.user_id);
+        return {
+          $id: member.$id,
+          group_id: member.group_id,
+          user_id: member.user_id,
+          role: member.role,
+          rotation_position: member.rotation_position,
+          joined_at: member.joined_at,
+          user: userDoc ? {
+            $id: userDoc.$id,
+            name: userDoc.name,
+            email: userDoc.email,
+            phone: userDoc.phone
+          } : undefined
+        };
+      });
+
+      // Map group data to KijumbeGroup type
+      const group: KijumbeGroup = {
+        $id: groupDoc.$id,
+        name: groupDoc.name,
+        kiongozi_id: groupDoc.kiongozi_id,
+        max_members: groupDoc.max_members,
+        rotation_duration: groupDoc.rotation_duration,
+        contribution_amount: groupDoc.contribution_amount,
+        status: groupDoc.status,
+        current_rotation: groupDoc.current_rotation,
+        created_at: groupDoc.created_at,
+        description: groupDoc.description,
+        members: membersWithUserData
+      };
+
+      return group;
+    } catch (error) {
+      console.error('Error getting group:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add a member to a group
+   */
+  async addGroupMember(groupId: string, userId: string, role: 'kiongozi' | 'member' = 'member'): Promise<void> {
+    try {
+      if (!groupId || !userId) {
+        throw new Error('Group ID and User ID are required');
+      }
+
+      // Check if user is already a member
+      const existingMember = await this.listDocuments(COLLECTIONS.GROUP_MEMBERS, [
+        Query.equal('group_id', groupId),
+        Query.equal('user_id', userId),
+        Query.limit(1)
+      ]);
+
+      if (existingMember.documents.length > 0) {
+        throw new Error('User is already a member of this group');
+      }
+
+      // Get current member count to set rotation position
+      const members = await this.listDocuments(COLLECTIONS.GROUP_MEMBERS, [
+        Query.equal('group_id', groupId)
+      ]);
+
+      const memberId = this.generateId('member_');
+      await this.createDocument(
+        COLLECTIONS.GROUP_MEMBERS,
+        memberId,
+        {
+          group_id: groupId,
+          user_id: userId,
+          role,
+          rotation_position: members.total + 1,
+          joined_at: new Date().toISOString()
+        },
+        [
+          `read("group:${groupId}")`,
+          `write("group:${groupId}")`
+        ]
+      );
+
+      console.log(`User ${userId} added to group ${groupId} as ${role}`);
+    } catch (error) {
+      console.error('Error adding group member:', error);
+      throw error;
+    }
+  }
+
   // Create a new Kijumbe group
   async createGroup(userId: string, groupData: Partial<KijumbeGroup>): Promise<KijumbeGroup | null> {
     try {

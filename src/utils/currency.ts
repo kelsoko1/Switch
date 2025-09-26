@@ -96,7 +96,15 @@ export const validateAmount = (amount: number, min: number = 0, max: number = 10
   return amount >= min && amount <= max && !isNaN(amount);
 };
 
-export const validateCurrencyInput = (value: string, minAmount?: number): CurrencyValidationResult => {
+interface CurrencyValidationOptions {
+  min?: number;
+  max?: number;
+}
+
+export const validateCurrencyInput = (
+  value: string, 
+  options: CurrencyValidationOptions = {}
+): CurrencyValidationResult => {
   if (!value || value.trim() === '') {
     return {
       isValid: false,
@@ -109,27 +117,35 @@ export const validateCurrencyInput = (value: string, minAmount?: number): Curren
   const amount = typeof value === 'string' ? parseCurrency(value) : Number(value);
   
   if (isNaN(amount) || amount < 0) {
-    return { isValid: false, amount: 0, error: 'Kiasi si sahihi' };
-  }
-  
-  // Use provided minAmount or default to COMMON_AMOUNTS.MINIMUM
-  const minimumAmount = minAmount !== undefined ? minAmount : COMMON_AMOUNTS.MINIMUM;
-  
-  if (amount < minimumAmount) {
     return { 
       isValid: false, 
-      amount, 
-      error: `Kiasi lazima kiwe angalau ${formatCurrency(minimumAmount)}` 
+      amount: 0, 
+      error: 'Kiasi si sahihi' 
     };
   }
   
-  if (amount > COMMON_AMOUNTS.MAXIMUM) {
+  // Use provided min or default to COMMON_AMOUNTS.MINIMUM
+  const minAmount = options.min !== undefined ? options.min : COMMON_AMOUNTS.MINIMUM;
+  const maxAmount = options.max !== undefined ? options.max : COMMON_AMOUNTS.MAXIMUM;
+  
+  if (amount < minAmount) {
     return { 
       isValid: false, 
       amount, 
-      error: `Kiasi cha juu ni ${formatCurrency(COMMON_AMOUNTS.MAXIMUM)}` 
+      error: `Kiasi lazima kiwe angalau ${formatCurrency(minAmount)}` 
     };
   }
   
-  return { isValid: true, amount };
+  if (amount > maxAmount) {
+    return { 
+      isValid: false, 
+      amount, 
+      error: `Kiasi cha juu ni ${formatCurrency(maxAmount)}` 
+    };
+  }
+  
+  return { 
+    isValid: true, 
+    amount 
+  };
 };

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
-import { Search, UserPlus, Check, Loader2 } from 'lucide-react';
+import { Search, UserPlus, MessageSquare, Check, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { userDirectory, type AppUser } from '../../lib/userDirectory';
 import { contactManager } from '../../lib/contacts';
@@ -15,6 +16,7 @@ export const UserDirectory: FC<UserDirectoryProps> = ({
   onContactAdded,
 }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<AppUser[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<AppUser[]>([]);
@@ -27,15 +29,15 @@ export const UserDirectory: FC<UserDirectoryProps> = ({
   }, []);
 
   useEffect(() => {
+    // Refresh users when search query changes
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      setFilteredUsers(
-        users.filter(
-          (user) =>
-            user.name.toLowerCase().includes(query) ||
-            user.email.toLowerCase().includes(query)
-        )
+      const filtered = users.filter(
+        (user) =>
+          user.name.toLowerCase().includes(query) ||
+          user.email.toLowerCase().includes(query)
       );
+      setFilteredUsers(filtered);
     } else {
       setFilteredUsers(users);
     }
@@ -48,23 +50,32 @@ export const UserDirectory: FC<UserDirectoryProps> = ({
       setIsLoading(true);
       setError('');
 
-      // Get all users
-      const allUsers = await userDirectory.getAllUsers();
+      // Get verified users
+      const verifiedUsers = await userDirectory.getVerifiedUsers();
+      const contacts = await contactManager.getContacts(user.$id);
       
-      // Filter out the current user
-      const otherUsers = allUsers.filter(u => u.id !== user.$id);
+      // Mark existing contacts and filter out current user
+      const usersWithContactStatus = verifiedUsers
+        .filter(u => u.id !== user.$id) // Exclude current user
+        .map(u => ({
+          ...u,
+          isContact: contacts.some(c => c.userId === u.id)
+        }));
       
-      // Mark users that are already contacts
-      const markedUsers = await userDirectory.markContacts(otherUsers, user.$id);
-      
-      setUsers(markedUsers);
-      setFilteredUsers(markedUsers);
+      setUsers(usersWithContactStatus);
+      setFilteredUsers(usersWithContactStatus);
     } catch (err) {
       console.error('Error loading users:', err);
       setError('Failed to load users. Please try again.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const startDirectMessage = (contactUser: AppUser) => {
+    // Navigate to direct chat with the selected user
+    navigate(`/chat/direct/${contactUser.id}`);
+    onClose();
   };
 
   const handleAddContact = async (contactUser: AppUser) => {
@@ -140,7 +151,11 @@ export const UserDirectory: FC<UserDirectoryProps> = ({
           ) : (
             <ul className="divide-y">
               {filteredUsers.map((appUser) => (
-                <li key={appUser.id} className="p-4 flex items-center">
+                <li 
+                  key={appUser.id} 
+                  className="p-4 flex items-center hover:bg-gray-50 cursor-pointer"
+                  onClick={() => startDirectMessage(appUser)}
+                >
                   <div className="flex-shrink-0">
                     {appUser.avatar ? (
                       <img
@@ -160,25 +175,36 @@ export const UserDirectory: FC<UserDirectoryProps> = ({
                     <h3 className="font-medium text-gray-900">{appUser.name}</h3>
                     <p className="text-sm text-gray-500">{appUser.email}</p>
                   </div>
-                  {appUser.isContact ? (
-                    <div className="flex items-center text-green-600">
-                      <Check className="w-5 h-5 mr-1" />
-                      <span className="text-sm">Contact</span>
-                    </div>
-                  ) : (
+                  <div className="flex items-center space-x-2">
                     <button
-                      onClick={() => handleAddContact(appUser)}
-                      disabled={addingContact === appUser.id}
-                      className="ml-2 p-2 text-purple-600 hover:bg-purple-50 rounded-full disabled:opacity-50"
-                      title="Add contact"
+                      onClick={() => startDirectMessage(appUser)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-full"
+                      title="Message"
                     >
-                      {addingContact === appUser.id ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <UserPlus className="w-5 h-5" />
-                      )}
+                      <MessageSquare className="w-5 h-5" />
                     </button>
-                  )}
+                    {appUser.isContact ? (
+                      <div className="flex items-center text-green-600">
+                        <Check className="w-5 h-5" />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddContact(appUser);
+                        }}
+                        disabled={addingContact === appUser.id}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-full disabled:opacity-50"
+                        title="Add contact"
+                      >
+                        {addingContact === appUser.id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <UserPlus className="w-5 h-5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
