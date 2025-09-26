@@ -35,34 +35,81 @@ export const XMPPProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Set up message handler
-    if (xmppManagerRef.current) {
-      const unsubscribe = xmppManagerRef.current.onMessage((message) => {
-        setMessages(prev => [...prev, message]);
-      });
+    const setupHandlers = () => {
+      if (xmppManagerRef.current) {
+        const unsubscribe = xmppManagerRef.current.onMessage((message) => {
+          setMessages(prev => [...prev, message]);
+        });
 
-      const unsubscribeRoster = xmppManagerRef.current.onRoster((rosterContacts) => {
-        setContacts(rosterContacts);
-      });
+        const unsubscribeRoster = xmppManagerRef.current.onRoster((rosterContacts) => {
+          setContacts(rosterContacts);
+        });
 
-      return () => {
-        unsubscribe();
-        unsubscribeRoster();
-      };
+        return () => {
+          unsubscribe?.();
+          unsubscribeRoster?.();
+        };
+      }
+      return () => {};
+    };
+
+    // Only set up handlers if connected
+    if (isConnected && xmppManagerRef.current) {
+      return setupHandlers();
     }
+    
+    return () => {};
+  }, [isConnected]);
+
+  // Store cleanup functions in a ref
+  const cleanupRef = useRef<(() => void) | null>(null);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+    };
   }, []);
 
   const connect = async (username: string, password: string) => {
     try {
+      // Ensure we disconnect first if already connected
+      if (xmppManagerRef.current) {
+        await xmppManagerRef.current.disconnect();
+      }
+      
       const manager = createSimpleXMPPManager(username, password);
       xmppManagerRef.current = manager;
 
-      await manager.authenticate(username, password);
-      await manager.connect();
+      // Set up listeners before connecting
+      const unsubscribeMessage = manager.onMessage((message) => {
+        setMessages(prev => [...prev, message]);
+      });
 
+      const unsubscribeRoster = manager.onRoster((rosterContacts) => {
+        setContacts(rosterContacts);
+      });
+
+      // Store cleanup function
+      cleanupRef.current = () => {
+        unsubscribeMessage();
+        unsubscribeRoster();
+      };
+
+      await manager.connect();
       setIsConnected(true);
       console.log('XMPP connected successfully');
     } catch (error) {
+      // Clean up on error
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
       console.error('XMPP connection failed:', error);
+      setIsConnected(false);
       throw error;
     }
   };
