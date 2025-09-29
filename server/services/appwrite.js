@@ -4,9 +4,9 @@ require('dotenv').config();
 class AppwriteService {
   constructor() {
     this.client = new Client()
-      .setEndpoint(process.env.APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
-      .setProject(process.env.APPWRITE_PROJECT_ID)
-      .setKey(process.env.APPWRITE_API_KEY);
+      .setEndpoint(process.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
+      .setProject(process.env.VITE_APPWRITE_PROJECT_ID)
+      .setKey(process.env.VITE_APPWRITE_API_KEY);
 
     this.account = new Account(this.client);
     this.databases = new Databases(this.client);
@@ -17,10 +17,10 @@ class AppwriteService {
     this.locale = new Locale(this.client);
 
     // Database IDs - Update these with your actual database and collection IDs
-    this.databaseId = process.env.APPWRITE_DATABASE_ID || 'default';
-    this.userCollectionId = process.env.APPWRITE_USERS_COLLECTION_ID || 'users';
-    this.walletCollectionId = process.env.APPWRITE_WALLETS_COLLECTION_ID || 'wallets';
-    this.transactionsCollectionId = process.env.APPWRITE_TRANSACTIONS_COLLECTION_ID || 'transactions';
+    this.databaseId = process.env.VITE_APPWRITE_DATABASE_ID || 'default';
+    this.userCollectionId = process.env.VITE_COLLECTION_USERS || 'users';
+    this.walletCollectionId = process.env.VITE_COLLECTION_WALLETS || 'wallets';
+    this.transactionsCollectionId = process.env.VITE_COLLECTION_TRANSACTIONS || 'transactions';
   }
 
   // Account Management

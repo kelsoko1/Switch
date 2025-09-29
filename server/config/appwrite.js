@@ -3,17 +3,17 @@ const { Client, Account, Databases, Storage, Functions, Teams, Avatars, Locale, 
 // Initialize Appwrite client
 let client;
 try {
-    if (!process.env.APPWRITE_PROJECT_ID) {
-        throw new Error('APPWRITE_PROJECT_ID is required');
+    if (!process.env.VITE_APPWRITE_PROJECT_ID) {
+        throw new Error('VITE_APPWRITE_PROJECT_ID is required');
     }
-    if (!process.env.APPWRITE_API_KEY) {
-        throw new Error('APPWRITE_API_KEY is required');
+    if (!process.env.VITE_APPWRITE_API_KEY) {
+        throw new Error('VITE_APPWRITE_API_KEY is required');
     }
 
     client = new Client()
-        .setEndpoint(process.env.APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
-        .setProject(process.env.APPWRITE_PROJECT_ID)
-        .setKey(process.env.APPWRITE_API_KEY);
+        .setEndpoint(process.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
+        .setProject(process.env.VITE_APPWRITE_PROJECT_ID)
+        .setKey(process.env.VITE_APPWRITE_API_KEY);
 
     console.log('Appwrite client initialized successfully');
 } catch (error) {
