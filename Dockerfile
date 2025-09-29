@@ -4,13 +4,16 @@ FROM node:18-alpine as builder
 # Set working directory
 WORKDIR /app
 
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
+
 # Copy package files
 COPY package*.json ./
 COPY server/package*.json ./server/
 
 # Install dependencies
-RUN npm install
-RUN cd server && npm install
+RUN npm ci
+RUN cd server && npm ci
 
 # Copy source code
 COPY . .
@@ -24,6 +27,9 @@ RUN cd server && npm run build
 # Production stage
 FROM node:18-alpine
 
+# Install runtime dependencies
+RUN apk add --no-cache curl
+
 # Set working directory
 WORKDIR /app
 
@@ -31,20 +37,30 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server/dist ./server/dist
 COPY --from=builder /app/server/package*.json ./server/
-COPY --from=builder /app/server/ecosystem.config.js ./server/
-
-# Install PM2 globally
-RUN npm install -g pm2
 
 # Install production dependencies
-RUN cd server && npm install --production
+RUN cd server && npm ci --only=production
+
+# Create necessary directories
+RUN mkdir -p /app/logs
 
 # Set environment variables
 ENV NODE_ENV=production
+ENV NODE_OPTIONS=--max_old_space_size=4096
 ENV PORT=2025
+ENV HOST=0.0.0.0
+
+# Create a non-root user
+RUN addgroup -S app && adduser -S app -G app
+RUN chown -R app:app /app
+USER app
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:2025/api/health || exit 1
 
 # Expose port
 EXPOSE 2025
 
-# Start the application using PM2
-CMD ["pm2-runtime", "server/ecosystem.config.js"]
+# Start the application
+CMD ["node", "server/dist/index.js"]

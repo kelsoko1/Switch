@@ -1,201 +1,182 @@
-# KijumbeSmart Deployment Guide
+# KijumbeSmart Docker Deployment Guide
 
-This guide provides instructions for deploying the KijumbeSmart application to a production server using the domain kijumbesmart.co.tz.
+This guide provides instructions for deploying the KijumbeSmart application using Docker and Docker Compose.
 
 ## Prerequisites
 
-- Ubuntu 20.04 or later server
-- Root access to the server
+- Linux server (Ubuntu 20.04+ recommended)
+- Docker installed (version 20.10.0+)
+- Docker Compose installed (version 1.29.0+)
 - Domain (kijumbesmart.co.tz) pointing to your server's IP address
-- Node.js 16+ and npm installed
+- Ports 80, 443, 5280, 8088, and 8188 open in your firewall
 
-## Automatic Deployment
+## Deployment Steps
 
-For automatic deployment, use the provided `deploy.sh` script:
+### 1. Clone the Repository
 
 ```bash
-# Make the script executable
+git clone https://github.com/yourusername/switch.git
+cd switch
+```
+
+### 2. Configure Environment Variables
+
+Copy the example environment file and update it with your configuration:
+
+```bash
+cp .env.example .env
+nano .env  # Edit the file with your configuration
+```
+
+### 3. Deploy the Application
+
+Use the provided deployment script:
+
+```bash
+# Make the scripts executable
 chmod +x deploy.sh
+chmod +x manage.sh
 
 # Run the deployment script as root
 sudo ./deploy.sh
 ```
 
 The script will:
-1. Install required dependencies (nginx, certbot, nodejs, npm)
-2. Install PM2 globally
-3. Create environment files
-4. Build the application
-5. Set up PM2 to start on boot
-6. Configure systemd service
-7. Set up Nginx with the domain
-8. Configure SSL with Let's Encrypt
-9. Start all services
+1. Pull the latest changes from the repository
+2. Build the Docker images
+3. Create necessary Docker networks and volumes
+4. Start all containers
+5. Set up proper logging and monitoring
 
-## Manual Deployment
+## Application Management
 
-If you prefer to deploy manually, follow these steps:
-
-### 1. Update Environment Files
+Use the `manage.sh` script to manage the application:
 
 ```bash
-# Generate environment files
-node update-env.js
+# Start the application
+./manage.sh start
+
+# Stop the application
+./manage.sh stop
+
+# Restart the application
+./manage.sh restart
+
+# View application logs
+./manage.sh logs
+
+# View application status
+./manage.sh status
+
+# Create a backup
+./manage.sh backup
+
+# Update the application
+./manage.sh update
 ```
 
-### 2. Build the Application
+## Port Configuration
+
+The following ports are used by the application:
+
+- `80`: HTTP (redirects to HTTPS)
+- `443`: HTTPS (main application)
+- `5280`: XMPP server (WebSocket)
+- `8088`: Janus WebRTC (HTTP)
+- `8188`: Janus WebRTC (WebSocket)
+
+## Environment Variables
+
+Key environment variables that need to be configured:
+
+```
+# Appwrite Configuration
+VITE_APPWRITE_ENDPOINT=your_appwrite_endpoint
+VITE_APPWRITE_PROJECT_ID=your_project_id
+VITE_APPWRITE_DATABASE_ID=your_database_id
+VITE_APPWRITE_API_KEY=your_api_key
+
+# Payment Gateway (Selcom)
+VITE_SELCOM_BASE_URL=https://apigw.selcommobile.com/v1
+VITE_SELCOM_API_KEY=your_selcom_api_key
+VITE_SELCOM_API_SECRET=your_selcom_secret
+VITE_SELCOM_MERCHANT_ID=your_merchant_id
+
+# XMPP/Janus Configuration
+XMPP_SERVER=wss://kijumbesmart.co.tz:5280/ws
+XMPP_DOMAIN=kijumbesmart.co.tz
+EJABBERD_WS_URL=wss://kijumbesmart.co.tz:5280/ws
+EJABBERD_DOMAIN=kijumbesmart.co.tz
+EJABBERD_API_URL=https://kijumbesmart.co.tz:5280/api
+USE_JANUS=true
+JANUS_URL=wss://kijumbesmart.co.tz:8188
+JANUS_JS_URL=https://kijumbesmart.co.tz:8088/janus.js
+```
+
+## Backup and Restore
+
+### Creating a Backup
 
 ```bash
-# Install dependencies
-npm install
-
-# Build the application
-npm run build
+./manage.sh backup
 ```
 
-### 3. Set Up PM2
+This will create a timestamped backup in the `/backups/kijumbesmart` directory.
 
-```bash
-# Install PM2 globally
-npm install -g pm2
+### Restoring from Backup
 
-# Start the application with PM2
-pm2 start ecosystem.config.js --env production
-
-# Set PM2 to start on boot
-pm2 startup systemd
-pm2 save
-```
-
-### 4. Configure Systemd Service
-
-```bash
-# Copy the service file
-cp kijumbesmart.service /etc/systemd/system/
-
-# Reload systemd
-systemctl daemon-reload
-
-# Enable and start the service
-systemctl enable kijumbesmart.service
-systemctl start kijumbesmart.service
-```
-
-### 5. Configure Nginx
-
-```bash
-# Copy the Nginx configuration
-cp kijumbesmart.conf /etc/nginx/sites-available/
-
-# Create a symbolic link
-ln -sf /etc/nginx/sites-available/kijumbesmart.conf /etc/nginx/sites-enabled/
-
-# Test and restart Nginx
-nginx -t
-systemctl restart nginx
-```
-
-### 6. Set Up SSL with Let's Encrypt
-
-```bash
-certbot --nginx -d kijumbesmart.co.tz -d www.kijumbesmart.co.tz
-```
-
-## Verifying the Deployment
-
-After deployment, verify that:
-
-1. The application is running on port 2025:
+1. Stop the application:
    ```bash
-   netstat -tuln | grep 2025
+   ./manage.sh stop
    ```
 
-2. PM2 is managing the application:
+2. Restore the database:
    ```bash
-   pm2 status
+   docker-compose exec -T db psql -U postgres -d kijumbesmart < /path/to/backup.sql
    ```
 
-3. Nginx is properly configured:
+3. Start the application:
    ```bash
-   nginx -t
-   ```
-
-4. The website is accessible via HTTPS:
-   ```bash
-   curl -I https://kijumbesmart.co.tz
+   ./manage.sh start
    ```
 
 ## Troubleshooting
 
-### Application Not Starting
-
-Check the PM2 logs:
-```bash
-pm2 logs kijumbesmart-app
-```
-
-### Nginx Configuration Issues
-
-Check Nginx error logs:
-```bash
-tail -f /var/log/nginx/error.log
-```
-
-### SSL Certificate Issues
-
-Check Let's Encrypt logs:
-```bash
-tail -f /var/log/letsencrypt/letsencrypt.log
-```
-
-## Maintenance
-
-### Updating the Application
-
-To update the application:
-
-1. Pull the latest code
-2. Build the application:
-   ```bash
-   npm run build
-   ```
-3. Restart the service:
-   ```bash
-   pm2 reload ecosystem.config.js
-   ```
-
-### Renewing SSL Certificates
-
-Let's Encrypt certificates are valid for 90 days and are automatically renewed by a cron job. To manually renew:
+### Viewing Logs
 
 ```bash
-certbot renew
+# View all logs
+docker-compose logs -f
+
+# View logs for a specific service
+docker-compose logs -f app
 ```
 
-### Monitoring
+### Common Issues
 
-Monitor the application using PM2:
-
-```bash
-pm2 monit
-```
+1. **Port conflicts**: Make sure the required ports are not in use by other services.
+2. **Permission issues**: Ensure the Docker user has the necessary permissions.
+3. **Docker daemon not running**: Start the Docker service with `sudo systemctl start docker`.
+4. **Out of memory**: Increase the Docker memory limit in the Docker Desktop settings or add swap space to your server.
 
 ## Security Considerations
 
-1. Keep the server updated:
-   ```bash
-   apt update && apt upgrade -y
-   ```
+1. Always use strong passwords for all services.
+2. Keep your server and Docker images updated.
+3. Use a firewall to restrict access to only necessary ports.
+4. Regularly back up your data.
+5. Monitor your application logs for suspicious activity.
 
-2. Configure a firewall (UFW):
-   ```bash
-   ufw allow 22
-   ufw allow 80
-   ufw allow 443
-   ufw enable
-   ```
+## Updating the Application
 
-3. Regularly check for security updates for Node.js and npm packages:
-   ```bash
-   npm audit
-   ```
+To update to the latest version:
+
+```bash
+# Pull the latest changes
+git pull
+
+# Rebuild and restart the containers
+./manage.sh update
+## Support
+
+For support, please contact [your support email] or open an issue on the GitHub repository.
