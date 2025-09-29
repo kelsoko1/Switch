@@ -46,27 +46,28 @@ try {
     console.log('Validating database and collection configuration...');
     
     // Validate database ID
-    DATABASE_ID = process.env.APPWRITE_DATABASE_ID;
+    DATABASE_ID = process.env.VITE_APPWRITE_DATABASE_ID;
     if (!DATABASE_ID) {
-        throw new Error('APPWRITE_DATABASE_ID is required');
+        throw new Error('VITE_APPWRITE_DATABASE_ID is required');
     }
     console.log('Using database:', DATABASE_ID);
 
     // Validate bucket ID
-    BUCKET_ID = process.env.APPWRITE_BUCKET_ID || 'default';
+    BUCKET_ID = process.env.VITE_APPWRITE_BUCKET_ID || 'default';
     console.log('Using bucket:', BUCKET_ID);
 
     // Initialize collections with validation
     COLLECTIONS = {
-        USERS: process.env.COLLECTION_USERS || 'users',
-        GROUPS: process.env.COLLECTION_GROUPS || 'groups',
-        MEMBERS: process.env.COLLECTION_MEMBERS || 'members',
-        TRANSACTIONS: process.env.COLLECTION_TRANSACTIONS || 'transactions',
-        PAYMENTS: process.env.COLLECTION_PAYMENTS || 'payments',
-        OVERDRAFTS: process.env.COLLECTION_OVERDRAFTS || 'overdrafts',
-        WALLETS: process.env.COLLECTION_WALLETS || 'wallets',
-        WALLET_TRANSACTIONS: process.env.COLLECTION_WALLET_TRANSACTIONS || 'wallet_transactions',
-        WALLET_PAYMENTS: process.env.COLLECTION_WALLET_PAYMENTS || 'wallet_payments',
+        USERS: process.env.VITE_COLLECTION_USERS || 'users',
+        GROUPS: process.env.VITE_COLLECTION_GROUPS || 'groups',
+        MEMBERS: process.env.VITE_COLLECTION_MEMBERS || 'members',
+        TRANSACTIONS: process.env.VITE_COLLECTION_TRANSACTIONS || 'transactions',
+        PAYMENTS: process.env.VITE_COLLECTION_PAYMENTS || 'payments',
+        OVERDRAFTS: process.env.VITE_COLLECTION_OVERDRAFTS || 'overdrafts',
+        WHATSAPP_MESSAGES: process.env.VITE_COLLECTION_WHATSAPP_MESSAGES || 'whatsapp_messages',
+        WALLETS: process.env.VITE_COLLECTION_WALLETS || 'wallets',
+        WALLET_TRANSACTIONS: process.env.VITE_COLLECTION_WALLET_TRANSACTIONS || 'wallet_transactions',
+        WALLET_PAYMENTS: process.env.VITE_COLLECTION_WALLET_PAYMENTS || 'wallet_payments',
         MESSAGES: 'messages'
     };
 
