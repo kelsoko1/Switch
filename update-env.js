@@ -22,11 +22,11 @@ console.log('✅ Frontend .env.local file updated successfully');
 // Add additional environment variables for XMPP and Janus
 const additionalEnv = `
 # XMPP Configuration
-VITE_XMPP_SERVER=ws://localhost:5280/ws
+VITE_XMPP_SERVER=ws://localhost:2026/ws
 VITE_XMPP_DOMAIN=localhost
-VITE_EJABBERD_WS_URL=ws://localhost:5280/ws
+VITE_EJABBERD_WS_URL=ws://localhost:2026/ws
 VITE_EJABBERD_DOMAIN=localhost
-VITE_EJABBERD_API_URL=http://localhost:5280/api
+VITE_EJABBERD_API_URL=http://localhost:2026/api
 
 # Janus WebRTC Configuration
 VITE_USE_JANUS=false

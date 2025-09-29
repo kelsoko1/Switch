@@ -41,7 +41,7 @@ else
 fi
 
 # Check if the website is accessible
-WEBSITE_CHECK=$(curl -s -o /dev/null -w "%{http_code}" https://kijumbesmart.co.tz)
+WEBSITE_CHECK=$(curl -s -o /dev/null -w "%{http_code}" https://93.127.203.151:2025)
 if [ "$WEBSITE_CHECK" != "200" ]; then
   echo -e "${RED}ERROR: Website is not accessible (HTTP status: $WEBSITE_CHECK)${NC}"
 else
@@ -49,7 +49,7 @@ else
 fi
 
 # Check API health endpoint
-API_CHECK=$(curl -s -o /dev/null -w "%{http_code}" https://kijumbesmart.co.tz/api/health)
+API_CHECK=$(curl -s -o /dev/null -w "%{http_code}" https://93.127.203.151:2025/api/health)
 if [ "$API_CHECK" != "200" ]; then
   echo -e "${RED}ERROR: API health endpoint is not accessible (HTTP status: $API_CHECK)${NC}"
 else
@@ -57,7 +57,7 @@ else
 fi
 
 # Check SSL certificate expiration
-DOMAIN="kijumbesmart.co.tz"
+DOMAIN="93.127.203.151:2025"
 SSL_EXPIRY=$(echo | openssl s_client -servername $DOMAIN -connect $DOMAIN:443 2>/dev/null | openssl x509 -noout -enddate | cut -d= -f2)
 SSL_EXPIRY_SECONDS=$(date -d "$SSL_EXPIRY" +%s)
 CURRENT_SECONDS=$(date +%s)

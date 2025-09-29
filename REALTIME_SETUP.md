@@ -23,7 +23,7 @@ services:
     ports:
       - "5222:5222"   # XMPP client connections
       - "5269:5269"   # XMPP server-to-server connections
-      - "5280:5280"   # HTTP admin interface and WebSocket
+      - "2026:2026"   # HTTP admin interface and WebSocket
       - "5443:5443"   # HTTPS admin interface
     volumes:
       - ./ejabberd/conf:/home/ejabberd/conf
@@ -76,7 +76,7 @@ listen:
     module: ejabberd_s2s_in
     max_stanza_size: 524288
   -
-    port: 5280
+    port: 2026
     ip: "::"
     module: ejabberd_http
     request_handlers:
@@ -239,11 +239,11 @@ Update your `.env.local` file with the following XMPP configuration:
 
 ```
 # XMPP Configuration
-VITE_XMPP_SERVER=ws://localhost:5280/ws
+VITE_XMPP_SERVER=ws://localhost:2026/ws
 VITE_XMPP_DOMAIN=localhost
-VITE_EJABBERD_WS_URL=ws://localhost:5280/ws
+VITE_EJABBERD_WS_URL=ws://localhost:2026/ws
 VITE_EJABBERD_DOMAIN=localhost
-VITE_EJABBERD_API_URL=http://localhost:5280/api
+VITE_EJABBERD_API_URL=http://localhost:2026/api
 ```
 
 ## Setting Up Janus WebRTC Gateway
@@ -310,7 +310,7 @@ npm run dev
 
 - Check if the ejabberd server is running: `docker ps | grep ejabberd`
 - Check the ejabberd logs: `docker logs switch_ejabberd_1`
-- Ensure the WebSocket endpoint is accessible: `curl -v http://localhost:5280/ws`
+- Ensure the WebSocket endpoint is accessible: `curl -v http://localhost:2026/ws`
 
 ### Janus Connection Issues
 

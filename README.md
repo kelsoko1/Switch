@@ -1,6 +1,6 @@
-# KijumbeSmart Platform
+# Switch Platform
 
-A comprehensive platform for managing group finances with real-time communication capabilities.
+A comprehensive platform for managing group finances with real-time communication capabilities, built with modern web technologies.
 
 ## 🌟 Features
 
@@ -11,13 +11,16 @@ A comprehensive platform for managing group finances with real-time communicatio
 - 📱 **Mobile Responsive**: Works on all devices
 - 🚀 **Scalable Architecture**: Built with microservices in mind
 
-## 🚀 Quick Start with Docker
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Docker 20.10.0+
-- Docker Compose 1.29.0+
-- Domain name (e.g., kijumbesmart.co.tz)
+- Node.js 18.0.0 or later
+- npm 8.0.0 or later
+- PostgreSQL 14.0 or later
+- Redis 6.0 or later
+- Server with public IP (e.g., 93.127.203.151)
+- Domain name (optional, but recommended)
 - SSL certificates (Let's Encrypt recommended)
 
 ### 1. Clone the Repository
@@ -27,31 +30,69 @@ git clone https://github.com/yourusername/switch.git
 cd switch
 ```
 
-### 2. Configure Environment Variables
+### 2. Set Up Environment Variables
 
 ```bash
-# Copy example environment file
+# Copy example environment files
 cp .env.example .env
+cp server/.env.example server/.env
+cp env.production.template .env.production
 
-# Edit the file with your configuration
+# Edit the files with your configuration
 nano .env
+nano server/.env
+nano .env.production
 ```
 
-### 3. Start the Application
+### 3. Install Dependencies
 
 ```bash
-# Make the deployment scripts executable
-chmod +x deploy.sh manage.sh
+# Install root dependencies
+npm install
 
-# Run the deployment script
-./deploy.sh
+# Install server dependencies
+cd server
+npm install
+cd ..
 ```
 
-### 4. Access the Application
+### 4. Build the Application
 
-- Frontend: https://kijumbesmart.co.tz
-- Admin Panel: https://kijumbesmart.co.tz/admin
-- API Documentation: https://kijumbesmart.co.tz/api/docs
+```bash
+# Build the frontend
+npm run build
+
+# Build the server
+cd server
+npm run build
+cd ..
+```
+
+### 5. Start the Application
+
+```bash
+# Start the server in production mode
+cd server
+npm run start:prod
+
+# In a new terminal, start the frontend
+npm run preview
+```
+
+### 6. Access the Application
+
+Open your browser and navigate to:
+```
+https://93.127.203.151:2025
+```
+
+### 7. Set Up Systemd Services (Optional for Production)
+
+For production deployments, it's recommended to set up systemd services to manage the application processes. Example service files are provided in the `scripts` directory.
+
+- Frontend: https://93.127.203.151:2025
+- Admin Panel: https://93.127.203.151:2025/admin
+- API Documentation: https://93.127.203.151:2025/api/docs
 
 ## 🛠 Management Commands
 
@@ -83,7 +124,7 @@ Key environment variables that need to be configured:
 NODE_ENV=production
 PORT=2025
 HOST=0.0.0.0
-FRONTEND_URL=https://kijumbesmart.co.tz
+FRONTEND_URL=https://93.127.203.151:2025
 
 # Appwrite Configuration
 VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
@@ -92,14 +133,14 @@ VITE_APPWRITE_DATABASE_ID=your_database_id
 VITE_APPWRITE_API_KEY=your_api_key
 
 # XMPP/Janus Configuration
-XMPP_SERVER=wss://kijumbesmart.co.tz:5280/ws
-XMPP_DOMAIN=kijumbesmart.co.tz
-EJABBERD_WS_URL=wss://kijumbesmart.co.tz:5280/ws
-EJABBERD_DOMAIN=kijumbesmart.co.tz
-EJABBERD_API_URL=https://kijumbesmart.co.tz:5280/api
+XMPP_SERVER=wss://93.127.203.151:2025:2026/ws
+XMPP_DOMAIN=93.127.203.151:2025
+EJABBERD_WS_URL=wss://93.127.203.151:2025:2026/ws
+EJABBERD_DOMAIN=93.127.203.151:2025
+EJABBERD_API_URL=https://93.127.203.151:2025:2026/api
 USE_JANUS=true
-JANUS_URL=wss://kijumbesmart.co.tz:8188
-JANUS_JS_URL=https://kijumbesmart.co.tz:8088/janus.js
+JANUS_URL=wss://93.127.203.151:2025:8188
+JANUS_JS_URL=https://93.127.203.151:2025:8088/janus.js
 ```
 
 ## 📂 Project Structure
@@ -140,7 +181,7 @@ switch/
 
 ## 📚 Documentation
 
-- [API Documentation](https://kijumbesmart.co.tz/api/docs)
+- [API Documentation](https://93.127.203.151:2025/api/docs)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
 - [API Reference](docs/API_REFERENCE.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)

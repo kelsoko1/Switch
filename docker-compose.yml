@@ -1,9 +1,14 @@
 version: '3.8'
 
+# Use a project-specific name prefix to avoid conflicts
+name: switch
+
 networks:
   switch-network:
+    name: switch-network
     driver: bridge
   nginx-proxy-network:
+    name: nginx-proxy-network
     external: true
 
 services:
@@ -18,12 +23,21 @@ services:
       - nginx-proxy-network
     ports:
       - "2025:2025"
+      - "2026:2026"  # For XMPP if needed
     environment:
       # Server Configuration
       - NODE_ENV=production
       - PORT=2025
       - HOST=0.0.0.0
-      - FRONTEND_URL=http://93.127.203.151:2025
+      - FRONTEND_URL=https://93.127.203.151:2025
+      - VITE_BASE_URL=https://93.127.203.151:2025
+      
+      # XMPP Configuration
+      - XMPP_SERVER=wss://93.127.203.151:2026/ws
+      - XMPP_DOMAIN=93.127.203.151:2025
+      - EJABBERD_WS_URL=wss://93.127.203.151:2026/ws
+      - EJABBERD_DOMAIN=93.127.203.151:2025
+      - EJABBERD_API_URL=https://93.127.203.151:2026/api
       
       # Appwrite Configuration
       - VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
@@ -44,7 +58,7 @@ services:
       - VITE_COLLECTION_WALLET_PAYMENTS=wallet_payments
       
       # CORS Configuration
-      - CORS_ORIGIN=https://kijumbesmart.co.tz
+      - CORS_ORIGIN=https://93.127.203.151:2025
       - CORS_METHODS=GET,POST,PUT,DELETE,OPTIONS
       - CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With
       - CORS_CREDENTIALS=true
@@ -54,17 +68,17 @@ services:
       - VITE_SELCOM_API_KEY=${VITE_SELCOM_API_KEY}
       - VITE_SELCOM_API_SECRET=${VITE_SELCOM_API_SECRET}
       - VITE_SELCOM_MERCHANT_ID=${VITE_SELCOM_MERCHANT_ID}
-      - VITE_BASE_URL=https://kijumbesmart.co.tz
+      - VITE_BASE_URL=https://93.127.203.151:2025
       
       # XMPP/Janus Configuration
-      - XMPP_SERVER=wss://kijumbesmart.co.tz:5280/ws
-      - XMPP_DOMAIN=kijumbesmart.co.tz
-      - EJABBERD_WS_URL=wss://kijumbesmart.co.tz:5280/ws
-      - EJABBERD_DOMAIN=kijumbesmart.co.tz
-      - EJABBERD_API_URL=https://kijumbesmart.co.tz:5280/api
+      - XMPP_SERVER=wss://93.127.203.151:2025:2026/ws
+      - XMPP_DOMAIN=93.127.203.151:2025
+      - EJABBERD_WS_URL=wss://93.127.203.151:2025:2026/ws
+      - EJABBERD_DOMAIN=93.127.203.151:2025
+      - EJABBERD_API_URL=https://93.127.203.151:2025:2026/api
       - USE_JANUS=true
-      - JANUS_URL=wss://kijumbesmart.co.tz:8188
-      - JANUS_JS_URL=https://kijumbesmart.co.tz:8088/janus.js
+      - JANUS_URL=wss://93.127.203.151:2025:8188
+      - JANUS_JS_URL=https://93.127.203.151:2025:8088/janus.js
     
     env_file:
       - .env
@@ -110,11 +124,11 @@ services:
       - ./ejabberd/logs:/home/ejabberd/logs
     ports:
       - "5222:5222"  # XMPP client connections
-      - "5280:5280"  # HTTP admin interface
+      - "2026:2026"  # HTTP admin interface
       - "5269:5269"  # Server-to-server
     environment:
-      - XMPP_DOMAIN=kijumbesmart.co.tz
-      - EJABBERD_ADMIN=admin@kijumbesmart.co.tz
+      - XMPP_DOMAIN=93.127.203.151:2025
+      - EJABBERD_ADMIN=admin@93.127.203.151:2025
       - EJABBERD_ADMIN_PWD=your_secure_admin_password
     networks:
       - switch-network
@@ -130,7 +144,7 @@ services:
       - "8188:8188"  # WebSocket API
       - "8989:8989"  # Admin/Monitor
     environment:
-      - DOCKER_IP=kijumbesmart.co.tz
+      - DOCKER_IP=93.127.203.151:2025
       - DOCKER_NETWORK=switch-network
     networks:
       - switch-network

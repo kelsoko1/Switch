@@ -7,8 +7,8 @@ This guide provides instructions for deploying the KijumbeSmart application usin
 - Linux server (Ubuntu 20.04+ recommended)
 - Docker installed (version 20.10.0+)
 - Docker Compose installed (version 1.29.0+)
-- Domain (kijumbesmart.co.tz) pointing to your server's IP address
-- Ports 80, 443, 5280, 8088, and 8188 open in your firewall
+- Domain (93.127.203.151:2025) pointing to your server's IP address
+- Ports 80, 443, 2026, 8088, and 8188 open in your firewall
 
 ## Deployment Steps
 
@@ -81,7 +81,7 @@ The following ports are used by the application:
 
 - `80`: HTTP (redirects to HTTPS)
 - `443`: HTTPS (main application)
-- `5280`: XMPP server (WebSocket)
+- `2026`: XMPP server (WebSocket)
 - `8088`: Janus WebRTC (HTTP)
 - `8188`: Janus WebRTC (WebSocket)
 
@@ -103,14 +103,14 @@ VITE_SELCOM_API_SECRET=your_selcom_secret
 VITE_SELCOM_MERCHANT_ID=your_merchant_id
 
 # XMPP/Janus Configuration
-XMPP_SERVER=wss://kijumbesmart.co.tz:5280/ws
-XMPP_DOMAIN=kijumbesmart.co.tz
-EJABBERD_WS_URL=wss://kijumbesmart.co.tz:5280/ws
-EJABBERD_DOMAIN=kijumbesmart.co.tz
-EJABBERD_API_URL=https://kijumbesmart.co.tz:5280/api
+XMPP_SERVER=wss://93.127.203.151:2025:2026/ws
+XMPP_DOMAIN=93.127.203.151:2025
+EJABBERD_WS_URL=wss://93.127.203.151:2025:2026/ws
+EJABBERD_DOMAIN=93.127.203.151:2025
+EJABBERD_API_URL=https://93.127.203.151:2025:2026/api
 USE_JANUS=true
-JANUS_URL=wss://kijumbesmart.co.tz:8188
-JANUS_JS_URL=https://kijumbesmart.co.tz:8088/janus.js
+JANUS_URL=wss://93.127.203.151:2025:8188
+JANUS_JS_URL=https://93.127.203.151:2025:8088/janus.js
 ```
 
 ## Backup and Restore

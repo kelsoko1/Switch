@@ -53,6 +53,9 @@ ENV NODE_OPTIONS=--max_old_space_size=4096
 ENV PORT=2025
 ENV HOST=0.0.0.0
 
+# Expose the application port
+EXPOSE 2025
+
 # Create a non-root user
 RUN addgroup -S app && adduser -S app -G app
 RUN chown -R app:app /app

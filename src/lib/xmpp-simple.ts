@@ -375,7 +375,7 @@ export function createSimpleXMPPManager(
   password: string,
   customConfig?: Partial<SimpleXMPPConfig>
 ): SimpleXMPPManager {
-  const server = import.meta.env.VITE_XMPP_SERVER || 'ws://localhost:5280/ws';
+  const server = import.meta.env.VITE_XMPP_SERVER || 'ws://localhost:2026/ws';
   const domain = import.meta.env.VITE_XMPP_DOMAIN || 'localhost';
   
   const config: SimpleXMPPConfig = {

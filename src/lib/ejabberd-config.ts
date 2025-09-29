@@ -3,8 +3,8 @@ export const EJABBERD_CONFIG = {
   // Default ejabberd server settings
   server: {
     host: 'localhost',
-    port: 5280,
-    wsPort: 5280,
+    port: 2026,
+    wsPort: 2026,
     domain: 'localhost',
     adminUser: 'admin',
     adminPassword: 'admin123',
@@ -63,7 +63,7 @@ export const getEjabberdConfig = () => {
         server: {
           ...EJABBERD_CONFIG.server,
           host: 'localhost',
-          port: 5280,
+          port: 2026,
         },
         client: {
           ...EJABBERD_CONFIG.client,
@@ -82,7 +82,7 @@ export const getEjabberdConfig = () => {
         server: {
           ...EJABBERD_CONFIG.server,
           host: process.env.REACT_APP_EJABBERD_HOST || 'your-domain.com',
-          port: parseInt(process.env.REACT_APP_EJABBERD_PORT || '5280'),
+          port: parseInt(process.env.REACT_APP_EJABBERD_PORT || '2026'),
         },
         client: {
           ...EJABBERD_CONFIG.client,

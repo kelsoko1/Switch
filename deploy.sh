@@ -93,7 +93,7 @@ if [ "$(docker-compose ps -q | wc -l)" -gt 0 ]; then
     timeout 5s docker-compose logs -f || true
     
     # Show application URL
-    echo -e "\n${GREEN}🌍 Application should be available at: https://kijumbesmart.co.tz${NC}"
+    echo -e "\n${GREEN}🌍 Application should be available at: https://93.127.203.151:2025${NC}"
 else
     echo -e "${RED}❌ Failed to start containers. Check the logs with: docker-compose logs${NC}"
     exit 1
@@ -113,5 +113,5 @@ echo "- View logs:       docker-compose logs -f"
 echo "- View processes:  docker-compose ps"
 echo "- Access shell:    docker-compose exec app sh"
 
-echo -e "\n${GREEN}🌍 Your application is now running at: https://kijumbesmart.co.tz${NC}"
+echo -e "\n${GREEN}🌍 Your application is now running at: https://93.127.203.151:2025${NC}"
 echo -e "\n${GREEN}✅ Deployment completed successfully!${NC}"

@@ -47,7 +47,7 @@ services:
     container_name: ejabberd
     ports:
       - "5222:5222"   # XMPP client port
-      - "5280:5280"   # HTTP/WebSocket port
+      - "2026:2026"   # HTTP/WebSocket port
       - "5281:5281"   # HTTPS port
       - "5443:5443"   # XMPP over TLS
     environment:
@@ -90,7 +90,7 @@ listen:
     access: c2s
     starttls_required: false
   -
-    port: 5280
+    port: 2026
     ip: "::"
     module: ejabberd_http
     request_handlers:
@@ -274,7 +274,7 @@ Set these environment variables for production:
 
 ```bash
 REACT_APP_EJABBERD_HOST=your-domain.com
-REACT_APP_EJABBERD_PORT=5280
+REACT_APP_EJABBERD_PORT=2026
 REACT_APP_EJABBERD_DOMAIN=your-domain.com
 ```
 
@@ -334,7 +334,7 @@ import { createXMPPManager } from '../lib/xmpp-manager';
 ```typescript
 // Update server settings
 const config = {
-  server: 'ws://localhost:5280/ws',
+  server: 'ws://localhost:2026/ws',
   domain: 'localhost',
   username: 'your-username',
   password: 'your-password',

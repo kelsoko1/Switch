@@ -330,7 +330,7 @@ export class XMPPManager {
 
 // Default XMPP configuration
 export const DEFAULT_XMPP_CONFIG = {
-  server: 'ws://localhost:5280/ws',
+  server: 'ws://localhost:2026/ws',
   domain: 'localhost',
   debug: true,
 };
