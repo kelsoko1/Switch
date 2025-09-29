@@ -1,4 +1,23 @@
-// In server/index.js, ensure these configurations are set:
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const errorHandler = require('./middleware/errorHandler');
+const authRoutes = require('./routes/auth');
+const walletRoutes = require('./routes/wallet');
+const adminRoutes = require('./routes/admin');
+const groupsRoutes = require('./routes/groups');
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Rate limiting configuration
+const rateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again after 15 minutes'
+});
 
 // Trust proxy
 app.set('trust proxy', true);
