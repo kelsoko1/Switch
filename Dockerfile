@@ -35,11 +35,14 @@ WORKDIR /app
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/server/dist ./server/dist
-COPY --from=builder /app/server/package*.json ./server/
+COPY --from=builder /app/server/dist ./dist/server
+COPY --from=builder /app/server/package*.json ./dist/server/
+
+# Copy environment files if they exist
+COPY --from=builder /app/.env* ./
 
 # Install production dependencies
-RUN cd server && npm ci --only=production
+RUN cd dist/server && npm ci --only=production
 
 # Create necessary directories
 RUN mkdir -p /app/logs
@@ -63,4 +66,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 2025
 
 # Start the application
-CMD ["node", "server/dist/index.js"]
+CMD ["node", "dist/server/index.js"]
