@@ -25,7 +25,7 @@ echo -e "${YELLOW}Creating basic HTTP configuration...${NC}"
 cat > /etc/nginx/sites-available/kijumbesmart.conf << EOF
 server {
     listen 80;
-    server_name 93.127.203.151:2025 www.93.127.203.151:2025;
+    server_name kijumbesmart.co.tz:2025 www.kijumbesmart.co.tz:2025;
     
     # Root directory and index file
     root /root/switch/dist;

@@ -11,9 +11,9 @@ export const env = {
   IS_PRODUCTION: import.meta.env.PROD || false,
   
   // API Configuration
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://93.127.203.151:2025',
+  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://kijumbesmart.co.tz:2025',
   
   // WebSocket Configuration
   WS_ENABLED: import.meta.env.VITE_WS_ENABLED !== 'false',
-  WS_URL: import.meta.env.VITE_WS_URL || 'ws://93.127.203.151:2025/ws',
+  WS_URL: import.meta.env.VITE_WS_URL || 'ws://kijumbesmart.co.tz:2025/ws',
 } as const;

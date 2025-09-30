@@ -1,7 +1,7 @@
 ### ejabberd configuration file for Switch app
 
 hosts:
-  - 93.127.203.151:2025
+  - kijumbesmart.co.tz:2025
 
 loglevel: info
 
@@ -112,7 +112,7 @@ modules:
   mod_http_upload:
     put_url: https://@HOST@:5443/upload
     custom_headers:
-      "Access-Control-Allow-Origin": "https://93.127.203.151:2025"
+      "Access-Control-Allow-Origin": "https://kijumbesmart.co.tz:2025"
       "Access-Control-Allow-Methods": "GET,HEAD,PUT,OPTIONS"
       "Access-Control-Allow-Headers": "Content-Type"
   mod_last: {}

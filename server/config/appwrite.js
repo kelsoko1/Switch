@@ -1,125 +1,176 @@
 const { Client, Account, Databases, Storage, Functions, Teams, Avatars, Locale, Query, ID } = require('node-appwrite');
+const logger = require('../utils/logger');
 
-// Initialize Appwrite client
-let client;
-try {
-    if (!process.env.VITE_APPWRITE_PROJECT_ID) {
-        throw new Error('VITE_APPWRITE_PROJECT_ID is required');
-    }
-    if (!process.env.VITE_APPWRITE_API_KEY) {
-        throw new Error('VITE_APPWRITE_API_KEY is required');
-    }
+// Validate required environment variables
+const requiredEnvVars = [
+  'VITE_APPWRITE_ENDPOINT',
+  'VITE_APPWRITE_PROJECT_ID',
+  'VITE_APPWRITE_API_KEY',
+  'VITE_APPWRITE_DATABASE_ID',
+  'VITE_APPWRITE_COLLECTION_USERS',
+  'VITE_APPWRITE_COLLECTION_WALLETS',
+  'VITE_APPWRITE_COLLECTION_TRANSACTIONS',
+  'VITE_APPWRITE_COLLECTION_GROUPS',
+  'VITE_APPWRITE_COLLECTION_MESSAGES',
+  'VITE_APPWRITE_COLLECTION_CALLS',
+  'VITE_APPWRITE_BUCKET_AVATARS',
+  'VITE_APPWRITE_BUCKET_MEDIA',
+  'VITE_APPWRITE_BUCKET_DOCUMENTS'
+];
 
-    client = new Client()
-        .setEndpoint(process.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
-        .setProject(process.env.VITE_APPWRITE_PROJECT_ID)
-        .setKey(process.env.VITE_APPWRITE_API_KEY);
-
-    console.log('Appwrite client initialized successfully');
-} catch (error) {
-    console.error('Failed to initialize Appwrite client:', error);
-    process.exit(1);
+// Check for missing environment variables
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+if (missingVars.length > 0) {
+  logger.error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  process.exit(1);
 }
 
-// Initialize all Appwrite services
-let account, databases, storage, functions, teams, avatars, locale;
+// Initialize Appwrite client and services
+let client, account, databases, storage, functions, teams, avatars, locale;
 
 try {
-    console.log('Initializing Appwrite services...');
-    account = new Account(client);
-    databases = new Databases(client);
-    storage = new Storage(client);
-    functions = new Functions(client);
-    teams = new Teams(client);
-    avatars = new Avatars(client);
-    locale = new Locale(client);
-    console.log('All Appwrite services initialized successfully');
+  logger.info('Initializing Appwrite client and services...');
+  
+  // Initialize client
+  client = new Client()
+    .setEndpoint(process.env.VITE_APPWRITE_ENDPOINT)
+    .setProject(process.env.VITE_APPWRITE_PROJECT_ID)
+    .setKey(process.env.VITE_APPWRITE_API_KEY);
+
+  // Initialize services
+  account = new Account(client);
+  databases = new Databases(client);
+  storage = new Storage(client);
+  functions = new Functions(client);
+  teams = new Teams(client);
+  avatars = new Avatars(client);
+  locale = new Locale(client);
+  
+  logger.info('Appwrite services initialized successfully');
 } catch (error) {
-    console.error('Failed to initialize Appwrite services:', error);
-    process.exit(1);
+  logger.error('Failed to initialize Appwrite services:', error);
+  process.exit(1);
 }
 
-// Validate and initialize database and collection IDs
-let DATABASE_ID, BUCKET_ID, COLLECTIONS;
+// Database and collection configuration
+const DATABASE_ID = process.env.VITE_APPWRITE_DATABASE_ID;
+const BUCKET_ID = process.env.VITE_APPWRITE_BUCKET_ID || 'default';
 
-try {
-    console.log('Validating database and collection configuration...');
-    
-    // Validate database ID
-    DATABASE_ID = process.env.VITE_APPWRITE_DATABASE_ID;
-    if (!DATABASE_ID) {
-        throw new Error('VITE_APPWRITE_DATABASE_ID is required');
-    }
-    console.log('Using database:', DATABASE_ID);
+// Collection names from environment variables
+const COLLECTIONS = {
+  USERS: process.env.VITE_APPWRITE_COLLECTION_USERS,
+  WALLETS: process.env.VITE_APPWRITE_COLLECTION_WALLETS,
+  TRANSACTIONS: process.env.VITE_APPWRITE_COLLECTION_TRANSACTIONS,
+  GROUPS: process.env.VITE_APPWRITE_COLLECTION_GROUPS,
+  MESSAGES: process.env.VITE_APPWRITE_COLLECTION_MESSAGES,
+  CALLS: process.env.VITE_APPWRITE_COLLECTION_CALLS,
+  PAYMENTS: 'payments',
+  NOTIFICATIONS: 'notifications',
+  SESSIONS: 'sessions'
+};
 
-    // Validate bucket ID
-    BUCKET_ID = process.env.VITE_APPWRITE_BUCKET_ID || 'default';
-    console.log('Using bucket:', BUCKET_ID);
-
-    // Initialize collections with validation
-    COLLECTIONS = {
-        USERS: process.env.VITE_COLLECTION_USERS || 'users',
-        GROUPS: process.env.VITE_COLLECTION_GROUPS || 'groups',
-        MEMBERS: process.env.VITE_COLLECTION_MEMBERS || 'members',
-        TRANSACTIONS: process.env.VITE_COLLECTION_TRANSACTIONS || 'transactions',
-        PAYMENTS: process.env.VITE_COLLECTION_PAYMENTS || 'payments',
-        OVERDRAFTS: process.env.VITE_COLLECTION_OVERDRAFTS || 'overdrafts',
-        WHATSAPP_MESSAGES: process.env.VITE_COLLECTION_WHATSAPP_MESSAGES || 'whatsapp_messages',
-        WALLETS: process.env.VITE_COLLECTION_WALLETS || 'wallets',
-        WALLET_TRANSACTIONS: process.env.VITE_COLLECTION_WALLET_TRANSACTIONS || 'wallet_transactions',
-        WALLET_PAYMENTS: process.env.VITE_COLLECTION_WALLET_PAYMENTS || 'wallet_payments',
-        MESSAGES: 'messages'
-    };
-
-    // Validate required collections
-    const requiredCollections = ['USERS', 'WALLETS', 'TRANSACTIONS'];
-    for (const collection of requiredCollections) {
-        if (!COLLECTIONS[collection]) {
-            throw new Error(`Collection ${collection} is required but not configured`);
-        }
-    }
-
-    console.log('Database and collection configuration validated successfully');
-} catch (error) {
-    console.error('Failed to validate database configuration:', error);
-    process.exit(1);
-}
-
-// Storage buckets
+// Storage buckets configuration
 const BUCKETS = {
-    USER_AVATARS: 'user_avatars',
-    MEDIA: 'media_files'
+  AVATARS: process.env.VITE_APPWRITE_BUCKET_AVATARS || 'avatars',
+  MEDIA: process.env.VITE_APPWRITE_BUCKET_MEDIA || 'media',
+  DOCUMENTS: process.env.VITE_APPWRITE_BUCKET_DOCUMENTS || 'documents'
+};
+
+// User roles
+const ROLES = {
+  USER: 'user',
+  ADMIN: 'admin',
+  SUPER_ADMIN: 'superadmin',
+  MODERATOR: 'moderator'
 };
 
 // Team roles
 const TEAM_ROLES = {
-    ADMIN: 'admin',
-    MEMBER: 'member',
-    VIEWER: 'viewer',
-    OWNER: 'owner'
+  OWNER: 'owner',
+  ADMIN: 'admin',
+  MEMBER: 'member',
+  VIEWER: 'viewer'
 };
 
-// Export all services and configurations
+// Helper function to handle Appwrite errors
+const handleError = (error, defaultMessage = 'An error occurred') => {
+  logger.error('Appwrite Error:', error);
+  
+  let message = defaultMessage;
+  let statusCode = 500;
+  let code = 'server_error';
+  
+  if (error.response) {
+    // Handle HTTP errors
+    statusCode = error.response.code || statusCode;
+    message = error.response.message || message;
+    code = error.response.type || code;
+  } else if (error.code) {
+    // Handle Appwrite SDK errors
+    code = error.code;
+    message = error.message || message;
+  }
+  
+  const errorObj = new Error(message);
+  errorObj.statusCode = statusCode;
+  errorObj.code = code;
+  
+  return errorObj;
+};
+
+// Validate database indexes on startup
+const initializeDatabaseIndexes = async () => {
+  try {
+    // Create indexes for users collection
+    await databases.createIndex(
+      DATABASE_ID,
+      COLLECTIONS.USERS,
+      'idx_unique_email',
+      'unique',
+      ['email'],
+      ['asc']
+    );
+    
+    // Add more indexes as needed
+    logger.info('Database indexes initialized successfully');
+  } catch (error) {
+    // Ignore errors about indexes already existing
+    if (error.code !== 409) {
+      logger.error('Error initializing database indexes:', error);
+    }
+  }
+};
+
+// Initialize database indexes when this module is loaded
+if (process.env.NODE_ENV !== 'test') {
+  initializeDatabaseIndexes().catch(err => {
+    logger.error('Failed to initialize database indexes:', err);
+  });
+}
+
 module.exports = {
-    // Clients
-    client,
-    account,
-    databases,
-    storage,
-    functions,
-    teams,
-    avatars,
-    locale,
-    
-    // Constants
-    DATABASE_ID,
-    BUCKET_ID,
-    COLLECTIONS,
-    BUCKETS,
-    TEAM_ROLES,
-    
-    // Utilities
-    Query,
-    ID,
-    generateId: () => ID.unique()
+  // Appwrite clients
+  client,
+  account,
+  databases,
+  storage,
+  functions,
+  teams,
+  avatars,
+  locale,
+  
+  // Constants
+  DATABASE_ID,
+  BUCKET_ID,
+  COLLECTIONS,
+  BUCKETS,
+  ROLES,
+  TEAM_ROLES,
+  
+  // Utilities
+  Query,
+  ID,
+  handleError,
+  generateId: () => ID.unique(),
+  initializeDatabaseIndexes
 };

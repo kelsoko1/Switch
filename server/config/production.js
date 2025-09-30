@@ -3,13 +3,13 @@ module.exports = {
     port: process.env.PORT || 2025,
     
     // Frontend URL
-    frontendUrl: 'https://93.127.203.151:2025',
+    frontendUrl: 'https://kijumbesmart.co.tz:2025',
     
     // Security settings
     cors: {
         origin: [
-            'https://93.127.203.151:2025',
-            'https://www.93.127.203.151:2025',
+            'https://kijumbesmart.co.tz:2025',
+            'https://www.kijumbesmart.co.tz:2025',
             'https://fra.cloud.appwrite.io'
         ],
         credentials: true,

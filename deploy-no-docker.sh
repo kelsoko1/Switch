@@ -16,7 +16,7 @@ APP_DIR="/opt/$APP_NAME"
 NGINX_CONF_DIR="/etc/nginx/conf.d"
 SYSTEMD_DIR="/etc/systemd/system"
 ENV_FILE=".env.production"
-DOMAIN="93.127.203.151"
+DOMAIN="kijumbesmart.co.tz"
 PORTS=("2025" "2026" "2027")
 
 # Check if running as root

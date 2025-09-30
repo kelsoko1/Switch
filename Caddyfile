@@ -1,0 +1,132 @@
+# Global settings
+{
+    # Enable automatic HTTPS
+    email admin@kijumbesmart.co.tz
+    acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
+# Main domain - handles both HTTP and HTTPS
+kijumbesmart.co.tz, www.kijumbesmart.co.tz {
+    # Redirect www to non-www
+    @www {
+        host www.kijumbesmart.co.tz
+    }
+    redir @www https://kijumbesmart.co.tz{uri} permanent
+
+    # Handle ACME challenge for Let's Encrypt
+    .well-known/acme-challenge/* {
+        root * /var/www/html
+        file_server
+    }
+
+    # Redirect HTTP to HTTPS
+    redir https://kijumbesmart.co.tz{uri} permanent
+}
+
+# HTTPS configuration
+kijumbesmart.co.tz:443 {
+    # Frontend
+    handle {
+        reverse_proxy Switch:2025 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # API
+    handle_path /api/* {
+        reverse_proxy Switch:2026 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # XMPP WebSocket
+    handle_path /xmpp-ws/* {
+        reverse_proxy Switch:2027 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up Connection {>Connection}
+            header_up Upgrade {>Upgrade}
+            header_up Sec-WebSocket-Key {>Sec-WebSocket-Key}
+            header_up Sec-WebSocket-Version {>Sec-WebSocket-Version}
+        }
+    }
+
+    # Janus WebSocket
+    handle_path /janus-ws/* {
+        reverse_proxy Switch:2028 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up Connection {>Connection}
+            header_up Upgrade {>Upgrade}
+            header_up Sec-WebSocket-Key {>Sec-WebSocket-Key}
+            header_up Sec-WebSocket-Version {>Sec-WebSocket-Version}
+        }
+    }
+}
+
+# Port 2025 - Direct access (for backward compatibility)
+:2025 {
+    # Redirect to HTTPS
+    redir https://kijumbesmart.co.tz{uri} permanent
+}
+
+# API Port (2026) - Direct access
+:2026 {
+    handle {
+        reverse_proxy Switch:2026
+    }
+}
+
+# XMPP WebSocket Port (2027) - Direct access
+:2027 {
+    handle {
+        reverse_proxy Switch:2027 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up Connection {>Connection}
+            header_up Upgrade {>Upgrade}
+            header_up Sec-WebSocket-Key {>Sec-WebSocket-Key}
+            header_up Sec-WebSocket-Version {>Sec-WebSocket-Version}
+        }
+    }
+}
+
+# Janus WebSocket Port (2028) - Direct access
+:2028 {
+    handle {
+        reverse_proxy Switch:2028 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up Connection {>Connection}
+            header_up Upgrade {>Upgrade}
+            header_up Sec-WebSocket-Key {>Sec-WebSocket-Key}
+            header_up Sec-WebSocket-Version {>Sec-WebSocket-Version}
+        }
+    }
+}
+
+# Janus HTTP Port (2029) - Direct access
+:2029 {
+    handle {
+        reverse_proxy Switch:2029
+    }
+}
+
+# Rate limiting
+@rateLimited {
+    method GET POST PUT DELETE
+}
+
+route @rateLimited {
+    rate_limit {
+        zone kijumbesmart.co.tz {
+            key {remote_host}
+            events 100
+            window 1m
+        }
+    }
+}

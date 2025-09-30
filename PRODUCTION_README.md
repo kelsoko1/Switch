@@ -1,6 +1,6 @@
 # KijumbeSmart Production Setup
 
-This document provides instructions for setting up the KijumbeSmart application in a production environment using the domain 93.127.203.151:2025 and running on port 2025.
+This document provides instructions for setting up the KijumbeSmart application in a production environment using the domain kijumbesmart.co.tz:2025 and running on port 2025.
 
 ## Quick Start
 
@@ -77,7 +77,7 @@ If you prefer to set up the application manually, follow these steps:
 
 7. Set up SSL with Let's Encrypt:
    ```bash
-   sudo certbot --nginx -d 93.127.203.151:2025 -d www.93.127.203.151:2025
+   sudo certbot --nginx -d kijumbesmart.co.tz:2025 -d www.kijumbesmart.co.tz:2025
    ```
 
 8. Set up cron jobs:

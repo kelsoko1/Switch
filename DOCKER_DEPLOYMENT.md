@@ -1,10 +1,10 @@
-# Docker Deployment Instructions for 93.127.203.151:2025
+# Docker Deployment Instructions for kijumbesmart.co.tz:2025
 
 ## Prerequisites
 
 1. Docker and Docker Compose installed on your server
 2. Existing nginx-proxy setup with Let's Encrypt companion
-3. Domain (93.127.203.151:2025) pointed to your server
+3. Domain (kijumbesmart.co.tz:2025) pointed to your server
 4. Git installed on your server
 
 ## Deployment Steps
@@ -24,7 +24,7 @@
    ```env
    NODE_ENV=production
    PORT=2025
-   FRONTEND_URL=https://93.127.203.151:2025
+   FRONTEND_URL=https://kijumbesmart.co.tz:2025
    APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
    APPWRITE_PROJECT_ID=your_project_id
    APPWRITE_API_KEY=your_api_key
@@ -120,7 +120,7 @@ The application is configured to work with an existing nginx-proxy setup. Make s
 
 5. Verify SSL certificates:
    ```bash
-   docker exec nginx-proxy ls -la /etc/nginx/certs/93.127.203.151:2025*
+   docker exec nginx-proxy ls -la /etc/nginx/certs/kijumbesmart.co.tz:2025*
    ```
 
 ## Security Notes

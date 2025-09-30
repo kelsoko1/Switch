@@ -1,0 +1,32 @@
+[Unit]
+Description=Switch Application Service
+Requires=docker.service
+After=docker.service network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/root/Switch
+
+# Environment variables
+Environment=COMPOSE_INTERACTIVE_NO_CLI=1
+
+# Stop the service and clean up
+ExecStop=/usr/bin/docker-compose -f /root/Switch/docker-compose.yml down
+
+# Start the service
+ExecStart=/usr/bin/docker-compose -f /root/Switch/docker-compose.yml up -d
+
+# Restart configuration
+Restart=on-failure
+RestartSec=10s
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Logging configuration
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=switch-app
+
+[Install]
+WantedBy=multi-user.target

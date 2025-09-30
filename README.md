@@ -19,7 +19,7 @@ A comprehensive platform for managing group finances with real-time communicatio
 - npm 8.0.0 or later
 - PostgreSQL 14.0 or later
 - Redis 6.0 or later
-- Server with public IP (e.g., 93.127.203.151)
+- Server with public IP (e.g., kijumbesmart.co.tz)
 - Domain name (optional, but recommended)
 - SSL certificates (Let's Encrypt recommended)
 
@@ -83,16 +83,16 @@ npm run preview
 
 Open your browser and navigate to:
 ```
-https://93.127.203.151:2025
+https://kijumbesmart.co.tz:2025
 ```
 
 ### 7. Set Up Systemd Services (Optional for Production)
 
 For production deployments, it's recommended to set up systemd services to manage the application processes. Example service files are provided in the `scripts` directory.
 
-- Frontend: https://93.127.203.151:2025
-- Admin Panel: https://93.127.203.151:2025/admin
-- API Documentation: https://93.127.203.151:2025/api/docs
+- Frontend: https://kijumbesmart.co.tz:2025
+- Admin Panel: https://kijumbesmart.co.tz:2025/admin
+- API Documentation: https://kijumbesmart.co.tz:2025/api/docs
 
 ## 🛠 Management Commands
 
@@ -124,7 +124,7 @@ Key environment variables that need to be configured:
 NODE_ENV=production
 PORT=2025
 HOST=0.0.0.0
-FRONTEND_URL=https://93.127.203.151:2025
+FRONTEND_URL=https://kijumbesmart.co.tz:2025
 
 # Appwrite Configuration
 VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
@@ -133,14 +133,14 @@ VITE_APPWRITE_DATABASE_ID=your_database_id
 VITE_APPWRITE_API_KEY=your_api_key
 
 # XMPP/Janus Configuration
-XMPP_SERVER=wss://93.127.203.151:2025:2026/ws
-XMPP_DOMAIN=93.127.203.151:2025
-EJABBERD_WS_URL=wss://93.127.203.151:2025:2026/ws
-EJABBERD_DOMAIN=93.127.203.151:2025
-EJABBERD_API_URL=https://93.127.203.151:2025:2026/api
+XMPP_SERVER=wss://kijumbesmart.co.tz:2025:2026/ws
+XMPP_DOMAIN=kijumbesmart.co.tz:2025
+EJABBERD_WS_URL=wss://kijumbesmart.co.tz:2025:2026/ws
+EJABBERD_DOMAIN=kijumbesmart.co.tz:2025
+EJABBERD_API_URL=https://kijumbesmart.co.tz:2025:2026/api
 USE_JANUS=true
-JANUS_URL=wss://93.127.203.151:2025:8188
-JANUS_JS_URL=https://93.127.203.151:2025:8088/janus.js
+JANUS_URL=wss://kijumbesmart.co.tz:2025:8188
+JANUS_JS_URL=https://kijumbesmart.co.tz:2025:8088/janus.js
 ```
 
 ## 📂 Project Structure
@@ -181,7 +181,7 @@ switch/
 
 ## 📚 Documentation
 
-- [API Documentation](https://93.127.203.151:2025/api/docs)
+- [API Documentation](https://kijumbesmart.co.tz:2025/api/docs)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
 - [API Reference](docs/API_REFERENCE.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)

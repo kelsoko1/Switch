@@ -1,7 +1,7 @@
 # Server Configuration
 VITE_PORT=2025
 VITE_NODE_ENV=production
-VITE_FRONTEND_URL=http://93.127.203.151:2025
+VITE_FRONTEND_URL=http://kijumbesmart.co.tz:2025
 
 # Appwrite Configuration
 VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
@@ -29,4 +29,4 @@ VITE_SELCOM_BASE_URL=https://apigw.selcommobile.com/v1
 VITE_SELCOM_API_KEY=TILL61099541-971371e3edeb4690b35dea06ca6b1e78
 VITE_SELCOM_API_SECRET=77faf6-fa1b4c-443f8d-aa6f91-b37939-59
 VITE_SELCOM_MERCHANT_ID=TILL61099541
-VITE_BASE_URL=https://93.127.203.151:2025
+VITE_BASE_URL=https://kijumbesmart.co.tz:2025

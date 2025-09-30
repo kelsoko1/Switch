@@ -21,7 +21,7 @@ echo -e "${YELLOW}Fix 1: Resetting Nginx configuration to HTTP only...${NC}"
 cat > /etc/nginx/sites-available/kijumbesmart.conf << EOF
 server {
     listen 80;
-    server_name 93.127.203.151:2025 www.93.127.203.151:2025;
+    server_name kijumbesmart.co.tz:2025 www.kijumbesmart.co.tz:2025;
     
     # Root directory and index file
     root /root/switch/dist;
@@ -104,6 +104,6 @@ else
   echo -e "${RED}× Failed to restart services${NC}"
 fi
 
-echo -e "${YELLOW}Quick fix completed. The application should now be accessible at http://93.127.203.151:2025${NC}"
+echo -e "${YELLOW}Quick fix completed. The application should now be accessible at http://kijumbesmart.co.tz:2025${NC}"
 echo -e "${YELLOW}After confirming that the application is working, you can set up SSL with:${NC}"
 echo -e "${YELLOW}sudo ./setup-ssl.sh${NC}"

@@ -1,14 +1,34 @@
-# KijumbeSmart Docker Deployment Guide
+# Switch Application Deployment Guide
 
-This guide provides instructions for deploying the KijumbeSmart application using Docker and Docker Compose.
+This guide provides instructions for deploying the Switch application using Docker and Docker Compose with the following port configuration:
+
+## Port Configuration
+
+| Port | Protocol | Service | Description |
+|------|----------|---------|-------------|
+| 2025 | TCP      | App     | Main application frontend |
+| 2026 | TCP      | API     | Application API |
+| 2027 | TCP      | XMPP    | XMPP WebSocket |
+| 2028 | TCP      | Janus   | Janus WebSocket |
+| 2029 | TCP      | Janus   | Janus HTTP API |
 
 ## Prerequisites
 
-- Linux server (Ubuntu 20.04+ recommended)
-- Docker installed (version 20.10.0+)
-- Docker Compose installed (version 1.29.0+)
-- Domain (93.127.203.151:2025) pointing to your server's IP address
-- Ports 80, 443, 2026, 8088, and 8188 open in your firewall
+- Docker and Docker Compose installed
+- Ports 2025-2029 available on your server
+- Domain name (kijumbesmart.co.tz) pointing to your server's IP address
+- Existing Caddy reverse proxy (already configured on your server)
+- Required ports open in your firewall (see table above)
+
+## Caddy Configuration
+
+The Caddy reverse proxy is used to handle all incoming traffic and route it to the appropriate services. The configuration is stored in `Caddyfile`.
+
+Key features:
+- Automatic HTTPS with Let's Encrypt
+- WebSocket support for real-time features
+- Rate limiting to prevent abuse
+- Header management for security
 
 ## Deployment Steps
 
@@ -21,54 +41,130 @@ cd switch
 
 ### 2. Configure Environment Variables
 
-Copy the example environment file and update it with your configuration:
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
 
-```bash
-cp .env.example .env
-nano .env  # Edit the file with your configuration
-```
+2. Update the environment variables in `.env`:
+   ```bash
+   nano .env
+   ```
+
+3. Ensure the following variables are set correctly:
+   ```
+   # Server Configuration
+   PORT=2025
+   HOST=0.0.0.0
+   FRONTEND_URL=https://kijumbesmart.co.tz:2025
+   VITE_BASE_URL=https://kijumbesmart.co.tz:2025
+   
+   # XMPP Configuration
+   XMPP_SERVER=wss://kijumbesmart.co.tz:2026/ws
+   XMPP_DOMAIN=kijumbesmart.co.tz
+   EJABBERD_WS_URL=wss://kijumbesmart.co.tz:2026/ws
+   EJABBERD_DOMAIN=kijumbesmart.co.tz
+   EJABBERD_API_URL=https://kijumbesmart.co.tz:2026/api
+   
+   # Janus Configuration
+   USE_JANUS=true
+   JANUS_WS_URL=wss://kijumbesmart.co.tz:8188
+   JANUS_JS_URL=https://kijumbesmart.co.tz:8088/janus.js
+   JANUS_HTTP_URL=https://kijumbesmart.co.tz:8088/janus
+   ```
 
 ### 3. Deploy the Application
 
-Use the provided deployment script:
+1. Make the deployment script executable:
+   ```bash
+   chmod +x deploy.sh
+   ```
 
-```bash
-# Make the scripts executable
-chmod +x deploy.sh
-chmod +x manage.sh
+2. Run the deployment script as root:
+   ```bash
+   sudo ./deploy.sh
+   ```
 
-# Run the deployment script as root
-sudo ./deploy.sh
-```
+   This will:
+   - Set up the application in `/root/Switch`
+   - Install and enable a systemd service for automatic startup
+   - Start the application as a background service
+   - Configure the service to restart automatically if it fails
+   - Create a Caddy configuration snippet
 
-The script will:
-1. Pull the latest changes from the repository
-2. Build the Docker images
-3. Create necessary Docker networks and volumes
-4. Start all containers
-5. Set up proper logging and monitoring
+3. Configure Caddy:
+   - The deployment script will create a file at `/root/Switch/caddy-snippet.conf`
+   - Add this configuration to your main Caddyfile
+   - Reload Caddy to apply the changes:
+     ```bash
+     sudo systemctl reload caddy
+     ```
+
+4. Verify the service is running:
+   ```bash
+   systemctl status switch-app
+   ```
+   
+5. Check Caddy logs for any issues:
+   ```bash
+   journalctl -u caddy -f
+   ```
+
+The deployment script will:
+1. Check if all required ports are available
+2. Configure the firewall to allow the required ports
+3. Pull the latest changes from the repository
+4. Build the Docker images
+5. Create necessary Docker networks and volumes
+6. Start all containers with the correct port mappings
+7. Set up proper logging and monitoring
+
+### 4. Verify the Deployment
+
+After deployment, verify that all services are running:
+
+1. Check container status:
+   ```bash
+   docker-compose ps
+   ```
+
+2. Check application logs:
+   ```bash
+   docker-compose logs -f
+   ```
+
+3. Verify services are accessible:
+   - Main application: https://kijumbesmart.co.tz:2025
+   - XMPP WebSocket: wss://kijumbesmart.co.tz:2026/ws
+   - Janus WebRTC: https://kijumbesmart.co.tz:8088/janus
 
 ## Application Management
 
-Use the `manage.sh` script to manage the application:
+The application runs as a systemd service for persistent operation. Use these commands to manage it:
 
-```bash
-# Start the application
-./manage.sh start
+### Service Management
 
-# Stop the application
-./manage.sh stop
+- **Start the service**:
+  ```bash
+  systemctl start switch-app
+  ```
 
-# Restart the application
-./manage.sh restart
+- **Stop the service**:
+  ```bash
+  systemctl stop switch-app
+  ```
 
-# View application logs
-./manage.sh logs
+- **Restart the service**:
+  ```bash
+  systemctl restart switch-app
+  ```
 
-# View application status
-./manage.sh status
+- **View service status**:
+  ```bash
+  systemctl status switch-app
+  ```
 
-# Create a backup
+### Logs
 ./manage.sh backup
 
 # Update the application
@@ -103,14 +199,14 @@ VITE_SELCOM_API_SECRET=your_selcom_secret
 VITE_SELCOM_MERCHANT_ID=your_merchant_id
 
 # XMPP/Janus Configuration
-XMPP_SERVER=wss://93.127.203.151:2025:2026/ws
-XMPP_DOMAIN=93.127.203.151:2025
-EJABBERD_WS_URL=wss://93.127.203.151:2025:2026/ws
-EJABBERD_DOMAIN=93.127.203.151:2025
-EJABBERD_API_URL=https://93.127.203.151:2025:2026/api
+XMPP_SERVER=wss://kijumbesmart.co.tz:2025:2026/ws
+XMPP_DOMAIN=kijumbesmart.co.tz:2025
+EJABBERD_WS_URL=wss://kijumbesmart.co.tz:2025:2026/ws
+EJABBERD_DOMAIN=kijumbesmart.co.tz:2025
+EJABBERD_API_URL=https://kijumbesmart.co.tz:2025:2026/api
 USE_JANUS=true
-JANUS_URL=wss://93.127.203.151:2025:8188
-JANUS_JS_URL=https://93.127.203.151:2025:8088/janus.js
+JANUS_URL=wss://kijumbesmart.co.tz:2025:8188
+JANUS_JS_URL=https://kijumbesmart.co.tz:2025:8088/janus.js
 ```
 
 ## Backup and Restore

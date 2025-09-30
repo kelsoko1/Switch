@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Configuration
-const PRODUCTION_DOMAIN = '93.127.203.151:2025';
+const PRODUCTION_DOMAIN = 'kijumbesmart.co.tz:2025';
 const PRODUCTION_URL = `https://${PRODUCTION_DOMAIN}`;
 
 // Colors for console output

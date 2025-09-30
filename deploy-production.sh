@@ -16,7 +16,7 @@ check_command() {
     fi
 }
 
-echo -e "${YELLOW}🚀 Starting deployment to 93.127.203.151:2025...${NC}"
+echo -e "${YELLOW}🚀 Starting deployment to kijumbesmart.co.tz:2025...${NC}"
 
 # Create required directories
 echo -e "${YELLOW}📁 Creating required directories...${NC}"
@@ -97,8 +97,8 @@ echo -e "${YELLOW}📜 Recent logs:${NC}"
 docker-compose logs --tail=50
 
 echo -e "${GREEN}✨ Deployment complete! The application should be accessible at:${NC}"
-echo -e "   - ${YELLOW}http://93.127.203.151:2025${NC}"
-echo -e "   - ${YELLOW}https://93.127.203.151:2025${NC} (once DNS propagates)"
+echo -e "   - ${YELLOW}http://kijumbesmart.co.tz:2025${NC}"
+echo -e "   - ${YELLOW}https://kijumbesmart.co.tz:2025${NC} (once DNS propagates)"
 
 echo -e "
 ${YELLOW}📝 To monitor logs, run:${NC}"

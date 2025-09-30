@@ -77,10 +77,10 @@ systemctl restart nginx
 
 # Step 7: Set up SSL with Let's Encrypt
 echo -e "${YELLOW}Step 7: Setting up SSL with Let's Encrypt...${NC}"
-certbot --nginx -d 93.127.203.151:2025 -d www.93.127.203.151:2025 --non-interactive --agree-tos --email admin@93.127.203.151:2025
+certbot --nginx -d kijumbesmart.co.tz:2025 -d www.kijumbesmart.co.tz:2025 --non-interactive --agree-tos --email admin@kijumbesmart.co.tz:2025
 if [ $? -ne 0 ]; then
   echo -e "${YELLOW}Warning: Failed to set up SSL certificates automatically. Will continue without SSL.${NC}"
-  echo -e "${YELLOW}You can manually set up SSL later with: certbot --nginx -d 93.127.203.151:2025 -d www.93.127.203.151:2025${NC}"
+  echo -e "${YELLOW}You can manually set up SSL later with: certbot --nginx -d kijumbesmart.co.tz:2025 -d www.kijumbesmart.co.tz:2025${NC}"
 fi
 
 # Step 8: Set up cron jobs
@@ -101,5 +101,5 @@ echo -e "${YELLOW}Step 10: Running health check...${NC}"
 ./health-check.sh
 
 echo -e "${GREEN}Setup completed successfully!${NC}"
-echo -e "${GREEN}KijumbeSmart application is now running on https://93.127.203.151:2025${NC}"
+echo -e "${GREEN}KijumbeSmart application is now running on https://kijumbesmart.co.tz:2025${NC}"
 echo -e "${GREEN}The application is configured to run on port 2025 and will start automatically on system boot.${NC}"
