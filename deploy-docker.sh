@@ -8,6 +8,12 @@
 
 set -e
 
+# ============================================
+# Configuration - Edit these values
+# ============================================
+DOMAIN="kijumbesmart.co.tz"
+EMAIL="odamo360@gmail.com"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'

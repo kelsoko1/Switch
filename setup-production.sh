@@ -7,6 +7,12 @@
 
 set -e
 
+# ============================================
+# Configuration - Edit these values
+# ============================================
+DOMAIN="kijumbesmart.co.tz"
+EMAIL="odamo360@gmail.com"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -99,31 +105,19 @@ else
     print_success "Environment file exists"
 fi
 
-# Step 7: Setup SSL (optional)
-print_info "Step 7/8: SSL Setup..."
-read -p "Do you want to setup SSL with Let's Encrypt? (y/N): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    apt-get install -y certbot python3-certbot-nginx
-    print_info "Stopping nginx temporarily..."
-    docker compose stop nginx 2>/dev/null || true
-    
-    read -p "Enter your domain (e.g., kijumbesmart.co.tz): " DOMAIN
-    read -p "Enter your email: " EMAIL
-    
-    certbot certonly --standalone -d $DOMAIN --email $EMAIL --agree-tos --non-interactive
-    
-    if [ $? -eq 0 ]; then
-        print_success "SSL certificate obtained"
-        
-        # Setup auto-renewal
-        (crontab -l 2>/dev/null; echo "0 0 * * * certbot renew --quiet && docker compose restart nginx") | crontab -
-        print_success "Auto-renewal configured"
-    else
-        print_warning "SSL setup failed. You can run certbot manually later."
-    fi
+# Step 7: Caddy Configuration
+print_info "Step 7/8: Configuring Caddy..."
+print_info "Using existing Caddy server on host"
+print_info "SSL will be handled automatically by Caddy"
+
+# Check if Caddy is running
+if systemctl is-active --quiet caddy; then
+    print_success "Caddy is running"
+    print_info "Reloading Caddy configuration..."
+    systemctl reload caddy 2>/dev/null || print_warning "Could not reload Caddy (may need manual reload)"
 else
-    print_info "Skipping SSL setup"
+    print_warning "Caddy is not running. Please start it manually:"
+    print_info "sudo systemctl start caddy"
 fi
 
 # Step 8: Build and start
@@ -155,17 +149,15 @@ fi
 
 # Show status
 print_header "Setup Complete!"
-print_success "Switch App is now running on kijumbesmart.co.tz:2025"
+print_success "Switch App is now running on kijumbesmart.co.tz"
 echo ""
 print_info "Service Status:"
 docker compose ps
 echo ""
 print_info "Access your application:"
 echo "  - Local:  http://localhost:2025"
-echo "  - Domain: http://kijumbesmart.co.tz:2025"
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "  - HTTPS:  https://kijumbesmart.co.tz:2025"
-fi
+echo "  - Domain: https://kijumbesmart.co.tz (via Caddy)"
+echo "  - Direct: http://kijumbesmart.co.tz:2025"
 echo ""
 print_info "Useful commands:"
 echo "  - View logs:        docker compose logs -f"
@@ -173,10 +165,12 @@ echo "  - Stop services:    docker compose stop"
 echo "  - Start services:   docker compose start"
 echo "  - Restart services: docker compose restart"
 echo "  - Update app:       git pull && docker compose up -d --build"
+echo "  - Reload Caddy:     sudo systemctl reload caddy"
 echo ""
 print_info "Next steps:"
-echo "  1. Configure your Appwrite collections (see APPWRITE_SETUP.md)"
-echo "  2. Test all features (chat, streaming, payments)"
-echo "  3. Setup monitoring and backups"
+echo "  1. Ensure Caddy is running: sudo systemctl status caddy"
+echo "  2. Configure your Appwrite collections (see APPWRITE_SETUP.md)"
+echo "  3. Test all features (chat, streaming, payments)"
+echo "  4. Setup monitoring and backups"
 echo ""
 print_success "Setup completed successfully!"

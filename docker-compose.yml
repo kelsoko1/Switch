@@ -27,8 +27,6 @@ volumes:
     driver: local
   janus-conf:
     driver: local
-  nginx-ssl:
-    driver: local
 
 # ============================================
 # Services Configuration
@@ -147,30 +145,8 @@ services:
       janus:
         condition: service_started
 
-  # Nginx Reverse Proxy
-  nginx:
-    image: nginx:alpine
-    container_name: switch-nginx
-    restart: unless-stopped
-    networks:
-      switch-network:
-        ipv4_address: 172.20.0.5
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - nginx-ssl:/etc/nginx/ssl
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-    environment:
-      - DOMAIN=kijumbesmart.co.tz
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
-    depends_on:
-      - switch-app
+  # Note: Nginx removed - using external Caddy reverse proxy
+  # Caddy handles SSL and reverse proxy on the host machine
 
   # ejabberd XMPP Server
   ejabberd:

@@ -1,0 +1,95 @@
+================================================================================
+SWITCH APP - DEPLOYMENT INSTRUCTIONS FOR kijumbesmart.co.tz:2025
+================================================================================
+
+CURRENT SITUATION:
+------------------
+You're running the setup script and it's asking for the domain name.
+
+IMMEDIATE NEXT STEPS:
+---------------------
+
+1. At the "Enter your domain" prompt, type:
+   kijumbesmart.co.tz
+   (Then press Enter)
+
+2. The script will continue and complete the setup.
+
+AFTER SETUP COMPLETES:
+----------------------
+
+3. Fix the .env file port configurations:
+   chmod +x fix-env.sh
+   ./fix-env.sh
+
+4. Restart the containers:
+   docker compose down
+   docker compose up -d
+
+5. Verify deployment:
+   curl http://localhost:2025/health
+
+6. Check logs:
+   docker compose logs -f
+
+ALTERNATIVE: MANUAL DEPLOYMENT
+-------------------------------
+
+If the script fails, you can deploy manually:
+
+1. Fix .env file:
+   chmod +x fix-env.sh
+   ./fix-env.sh
+
+2. Build and start:
+   docker compose build
+   docker compose up -d
+
+3. Check status:
+   docker compose ps
+   docker compose logs -f
+
+ACCESSING YOUR APP:
+-------------------
+- HTTP:  http://kijumbesmart.co.tz:2025
+- HTTPS: https://kijumbesmart.co.tz:2025 (after SSL setup)
+- Health: http://kijumbesmart.co.tz:2025/health
+
+USEFUL COMMANDS:
+----------------
+View logs:        docker compose logs -f
+Stop services:    docker compose stop
+Start services:   docker compose start
+Restart services: docker compose restart
+Check status:     docker compose ps
+Health check:     curl http://localhost:2025/health
+
+TROUBLESHOOTING:
+----------------
+If containers won't start:
+1. Check logs: docker compose logs switch-app
+2. Verify .env: cat .env
+3. Check ports: sudo lsof -i :2025
+4. Rebuild: docker compose build --no-cache
+
+If SSL fails:
+1. Stop nginx: docker compose stop nginx
+2. Run manually: sudo certbot certonly --standalone -d kijumbesmart.co.tz --email odamo360@gmail.com
+3. Start nginx: docker compose start nginx
+
+IMPORTANT NOTES:
+----------------
+- The .env file had incorrect port configurations (fixed by fix-env.sh)
+- All services run in Docker containers
+- Data is persisted in Docker volumes
+- Nginx handles SSL termination and reverse proxy
+- Port 2025 must be open in firewall (already configured)
+
+DOCUMENTATION:
+--------------
+- Quick Start: QUICK_START.md
+- Full Guide: README_DEPLOYMENT.md
+- Docker Guide: DOCKER_DEPLOYMENT_GUIDE.md
+- Summary: DEPLOYMENT_SUMMARY.md
+
+================================================================================
