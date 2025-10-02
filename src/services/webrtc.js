@@ -1,4 +1,4 @@
-import { Janus } from 'janus-gateway';
+import { Janus, loadJanus } from '../lib/janus-wrapper';
 import api from '../lib/api';
 
 class WebRTCService {
@@ -19,6 +19,12 @@ class WebRTCService {
     this.connectionState = 'connecting';
     
     try {
+      // Load Janus library
+      await loadJanus();
+      
+      if (!Janus) {
+        throw new Error('Failed to load Janus library');
+      }
       // Get Janus configuration from the server
       const { data } = await api.get('/janus/configuration');
       this.iceServers = data.iceServers;

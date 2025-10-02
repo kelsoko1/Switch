@@ -512,6 +512,35 @@ export class SimpleWebRTCManager {
       this.onPeerDisconnectedHandlers = this.onPeerDisconnectedHandlers.filter(h => h !== handler);
     };
   }
+  
+  // Media control methods
+  toggleAudio(enabled: boolean): void {
+    if (this.stream) {
+      this.stream.getAudioTracks().forEach(track => {
+        track.enabled = enabled;
+      });
+    }
+  }
+  
+  toggleVideo(enabled: boolean): void {
+    if (this.stream) {
+      this.stream.getVideoTracks().forEach(track => {
+        track.enabled = enabled;
+      });
+    }
+  }
+  
+  isAudioEnabled(): boolean {
+    if (!this.stream) return false;
+    const audioTracks = this.stream.getAudioTracks();
+    return audioTracks.length > 0 && audioTracks[0].enabled;
+  }
+  
+  isVideoEnabled(): boolean {
+    if (!this.stream) return false;
+    const videoTracks = this.stream.getVideoTracks();
+    return videoTracks.length > 0 && videoTracks[0].enabled;
+  }
 }
 
 // Utility function to create a WebRTC stream manager

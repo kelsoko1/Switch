@@ -117,6 +117,10 @@ validate_env() {
     # List of required environment variables
     local required_vars=(
         "VITE_APPWRITE_API_KEY"
+    )
+    
+    # Optional environment variables (will warn if missing but continue)
+    local optional_vars=(
         "VITE_SELCOM_API_KEY"
         "VITE_SELCOM_API_SECRET"
         "VITE_SELCOM_MERCHANT_ID"
@@ -139,7 +143,22 @@ validate_env() {
         exit 1
     fi
     
-    echo -e "${GREEN}✅ All required environment variables are set${NC}"
+    # Check optional variables
+    local missing_optional=()
+    for var in "${optional_vars[@]}"; do
+        if [ -z "${!var}" ]; then
+            missing_optional+=("$var")
+        fi
+    done
+    
+    if [ ${#missing_optional[@]} -ne 0 ]; then
+        echo -e "${YELLOW}⚠️  Missing optional environment variables (will continue):${NC}"
+        for var in "${missing_optional[@]}"; do
+            echo "  - $var"
+        done
+    fi
+    
+    echo -e "${GREEN}✅ Environment validation complete${NC}"
 }
 
 # Load and validate environment
@@ -171,13 +190,15 @@ else
     echo -e "${YELLOW}ℹ️  Not a git repository, skipping git pull${NC}"
 fi
 
-# Build the Docker images
-echo -e "${YELLOW}🔨 Building Docker images...${NC}"
-docker-compose build --no-cache
-
 # Stop and remove existing containers if they exist
 echo -e "${YELLOW}🛑 Stopping and removing existing containers...${NC}"
 docker-compose down || true
+
+# Build the Docker images
+echo -e "${YELLOW}🔨 Building Docker images...${NC}"
+# Export environment variables for docker-compose
+export $(grep -v '^#' .env | xargs)
+docker-compose build --no-cache
 
 # Configure firewall
 configure_firewall() {
@@ -274,10 +295,21 @@ fi
 
 # Rebuild the containers
 echo -e "${YELLOW}🔨 Rebuilding containers...${NC}
+# Export environment variables for docker-compose
+export $(grep -v '^#' .env | xargs)
 docker-compose build --no-cache
 
 # Start the services
 echo -e "${YELLOW}🚀 Starting services...${NC}
+# Export environment variables for docker-compose
+export $(grep -v '^#' .env | xargs)
+
+# Create required networks if they don't exist
+if ! docker network inspect nginx-proxy-network &> /dev/null; then
+    echo -e "${YELLOW}🌐 Creating nginx-proxy network...${NC}"
+    docker network create nginx-proxy-network
+fi
+
 if ! docker-compose up -d; then
     echo -e "${RED}❌ Failed to start services${NC}"
     echo -e "${YELLOW}🔄 Attempting to recover...${NC}"

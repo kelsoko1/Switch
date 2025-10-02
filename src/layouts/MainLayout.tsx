@@ -29,8 +29,7 @@ const MainLayout = () => {
       {/* Top Bar */}
       <header className="h-16 bg-white border-b flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <MessageSquare className="w-8 h-8 text-primary-500" />
-          <h1 className="text-xl font-bold text-gray-800">Switch</h1>
+          <h1 className="text-2xl font-bold text-primary-500">Switch</h1>
         </div>
 
         <div className="flex items-center gap-2">

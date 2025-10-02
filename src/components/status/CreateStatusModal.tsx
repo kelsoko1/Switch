@@ -1,6 +1,19 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { X, Video, Image } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  X, 
+  Camera, 
+  Image as ImageIcon, 
+  Type, 
+  Smile, 
+  Send,
+  Palette,
+  Pencil,
+  Trash2,
+  Download,
+  RotateCcw
+} from 'lucide-react';
 import { StatusView, statusViewService } from '../../services/statusService';
+import { useAuth } from '../../contexts/AuthContext';
 
 type MediaRecorderType = MediaRecorder;
 

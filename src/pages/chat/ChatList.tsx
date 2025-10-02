@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { Search, Plus, Users, DollarSign, UserPlus, UserSearch } from 'lucide-react';
@@ -135,6 +135,8 @@ const ChatList = () => {
   const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [directChats, setDirectChats] = useState<DirectChat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
 
   const loadGroups = useCallback(async (forceRefresh: boolean = false) => {
     if (!user) return;
@@ -143,13 +145,25 @@ const ChatList = () => {
       setIsLoading(true);
 
       // Load groups where user is a member
+      // Note: Query.search() requires full-text search index on 'members' field
+      // If the field doesn't exist or isn't indexed, this will fail
+      // For now, we'll get all groups and filter client-side
       const response = await database.listDocuments(COLLECTIONS.GROUPS, [
-        Query.search('members', user.$id),
+        Query.limit(100)
       ]);
 
       // Map the response to match our ChatGroup type
       const groupsData = (response.documents as AppwriteGroup[])
-        .filter(doc => doc.type !== 'direct')
+        .filter(doc => {
+          // Filter out direct chats and groups where user is not a member
+          if (doc.type === 'direct') return false;
+          // Check if user is a member (if members field exists)
+          if (doc.members && Array.isArray(doc.members)) {
+            return doc.members.includes(user.$id);
+          }
+          // If no members field, include the group (for backwards compatibility)
+          return true;
+        })
         .map(doc => ({
           id: doc.$id,
           name: doc.name,
@@ -202,10 +216,15 @@ const ChatList = () => {
       setGroups([]);
       setDirectChats([]);
       
-      // Schedule a retry after a short delay
-      setTimeout(() => {
-        loadGroups(false);
-      }, 3000);
+      // Schedule a retry after a short delay, but limit retries
+      if (retryCountRef.current < maxRetries) {
+        retryCountRef.current += 1;
+        setTimeout(() => {
+          loadGroups(false);
+        }, 3000 * retryCountRef.current); // Exponential backoff
+      } else {
+        console.warn('Max retries reached for loading chats');
+      }
     } finally {
       setIsLoading(false);
     }

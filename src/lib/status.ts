@@ -1,6 +1,6 @@
 import { database, services } from './appwrite';
 import { COLLECTIONS } from './constants';
-import { Models } from 'appwrite';
+import { Models, Query } from 'appwrite';
 
 export interface StatusUpdate {
   id: string;
@@ -58,13 +58,13 @@ export class StatusService {
   async getRecentStatuses(limit = 10, afterDate?: Date): Promise<StatusUpdate[]> {
     try {
       const queries = [
-        'order($createdAt.desc)',
-        `limit(${limit})`
+        Query.orderDesc('$createdAt'),
+        Query.limit(limit)
       ];
       
       // Add date filter if provided
       if (afterDate) {
-        queries.push(`$createdAt>${afterDate.toISOString()}`);
+        queries.push(Query.greaterThan('$createdAt', afterDate.toISOString()));
       }
       
       const response = await database.listDocuments(
@@ -84,7 +84,12 @@ export class StatusService {
         updated_at: status.$updatedAt,
         expires_at: status.expires_at
       }));
-    } catch (error) {
+    } catch (error: any) {
+      // Check if the error is due to missing collection
+      if (error?.code === 404 || error?.message?.includes('Collection')) {
+        console.warn('Status updates collection not found. Please run the database initialization script.');
+        return [];
+      }
       console.error('Error getting recent status updates:', error);
       return [];
     }

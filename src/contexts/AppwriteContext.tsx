@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { services, database, COLLECTIONS } from '../lib/appwrite';
-import { Models } from 'appwrite';
+import { Models, Query } from 'appwrite';
 
 interface AppwriteUser extends Models.Document {
   name: string;
@@ -70,7 +70,7 @@ export const AppwriteProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       // Try to get user profile from database
       const response = await database.listDocuments(COLLECTIONS.USERS, [
-        `$id=${userId}`
+        Query.equal('$id', userId)
       ]);
 
       if (response.total > 0) {
@@ -111,7 +111,7 @@ export const AppwriteProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       setError(null);
 
-      await services.account.createEmailSession(email, password);
+      await services.account.createSession(email, password);
       const account = await services.account.get();
       await loadUserProfile(account.$id);
     } catch (err) {
@@ -129,7 +129,7 @@ export const AppwriteProvider: React.FC<{ children: React.ReactNode }> = ({
       setError(null);
 
       const account = await services.account.create('unique()', email, password, name);
-      await services.account.createEmailSession(email, password);
+      await services.account.createSession(email, password);
       await loadUserProfile(account.$id);
     } catch (err) {
       console.error('Registration failed:', err);
@@ -223,8 +223,10 @@ export const AppwriteProvider: React.FC<{ children: React.ReactNode }> = ({
       // Delete user profile from database
       await database.deleteDocument(COLLECTIONS.USERS, user.$id);
 
-      // Delete account
-      await services.account.delete();
+      // Delete all sessions (logout)
+      // Note: Full account deletion requires server-side implementation
+      // For now, we delete the user document and logout
+      await services.account.deleteSessions();
       setUser(null);
     } catch (err) {
       console.error('Account deletion failed:', err);

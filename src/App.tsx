@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useState } from 'react';
 import AuthLayout from './layouts/AuthLayout';
 import MainLayout from './layouts/MainLayout';
 import Login from './pages/auth/Login';
@@ -7,14 +8,16 @@ import ChatList from './pages/chat/ChatList';
 import ChatRoom from './pages/chat/ChatRoom';
 import DirectChatRoom from './pages/chat/DirectChatRoom';
 import LiveStreams from './pages/streams/LiveStreams';
-import CreateStream from './pages/streams/CreateStream';
+import CreateStreamNew from './pages/streams/CreateStreamNew';
 import StreamView from './pages/streams/StreamView';
+import UploadVideo from './pages/streams/UploadVideo';
+import CreateShort from './pages/streams/CreateShort';
 import WalletTanzania from './pages/wallet/WalletTanzania';
 import KijumbeDashboard from './pages/kijumbe/KijumbeDashboard';
 import CreateGroup from './pages/kijumbe/CreateGroup';
 import GroupDetails from './pages/kijumbe/GroupDetails';
 import Settings from './pages/settings/Settings';
-
+import SplashScreen from './components/SplashScreen';
 
 import { XMPPProvider } from './contexts/XMPPContext';
 import { AppwriteProvider } from './contexts/AppwriteContext';
@@ -22,9 +25,15 @@ import { AuthProvider as KijumbeAuthProvider } from './contexts/KijumbeAuthConte
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function AppContent() {
+  const [showSplash, setShowSplash] = useState(true);
+  
   return (
     <AuthProvider>
-      <AppContentWithAuth />
+      {showSplash ? (
+        <SplashScreen onComplete={() => setShowSplash(false)} />
+      ) : (
+        <AppContentWithAuth />
+      )}
     </AuthProvider>
   );
 }
@@ -49,7 +58,9 @@ function AppContentWithAuth() {
               <Route path="chat/group/:chatId" element={<ChatRoom />} />
               <Route path="chat/:id" element={<DirectChatRoom />} />
               <Route path="streams" element={<LiveStreams />} />
-              <Route path="streams/create" element={<CreateStream />} />
+              <Route path="streams/create" element={<CreateStreamNew />} />
+              <Route path="streams/upload" element={<UploadVideo />} />
+              <Route path="streams/shorts/create" element={<CreateShort />} />
               <Route path="streams/:streamId" element={<StreamView />} />
               <Route path="wallet" element={<WalletTanzania />} />
               <Route path="kijumbe" element={<KijumbeDashboard />} />

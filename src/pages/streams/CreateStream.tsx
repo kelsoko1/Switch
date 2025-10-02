@@ -1,12 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Mic, Users, X, DollarSign, Tags } from 'lucide-react';
+import { X, Camera, DollarSign, Mic } from 'lucide-react';
 import { SimpleWebRTCManager, createSimpleWebRTCManager } from '../../lib/webrtc-simple';
 
 const CreateStream = () => {
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [streamManager, setStreamManager] = useState<SimpleWebRTCManager | null>(null);
   const [streamTitle, setStreamTitle] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isPaid, setIsPaid] = useState(false);
@@ -14,34 +13,99 @@ const CreateStream = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isMicEnabled, setIsMicEnabled] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [streamId] = useState(() => `stream_${Date.now()}`);
+  const [isStarting, setIsStarting] = useState(false);
 
   const categories = ['Gaming', 'Music', 'Education', 'Wellness', 'Tech', 'Art', 'Cooking'];
   const suggestedTags = ['Beginner', 'Advanced', 'Tutorial', 'Entertainment', 'Q&A'];
 
   useEffect(() => {
-    const streamId = Date.now().toString();
-    const manager = createSimpleWebRTCManager(streamId, true);
-    setStreamManager(manager);
+    let manager: SimpleWebRTCManager | null = null;
+    let mounted = true;
 
-    manager.initialize().then(() => {
-      return manager.startStream();
-    }).then((stream) => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+    const initializeStream = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Create WebRTC manager with correct signature
+        manager = createSimpleWebRTCManager(streamId, true, {
+          onConnectionStateChange: (state) => {
+            console.log('Connection state:', state);
+            if (state === 'failed' || state === 'disconnected') {
+              setError('Connection lost. Please check your internet connection.');
+            }
+          }
+        });
+
+        if (!mounted) return;
+
+        // Initialize WebRTC
+        await manager.initialize();
+
+        // Start local stream
+        const stream = await manager.startStream();
+        
+        if (mounted && videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Failed to start stream:', error);
+        if (mounted) {
+          setError('Failed to access camera/microphone. Please check permissions.');
+          setIsLoading(false);
+        }
       }
-    }).catch((error) => {
-      console.error('Failed to start stream:', error);
-      // Show error to user
-    });
+    };
+
+    initializeStream();
 
     return () => {
-      manager.stopStream();
+      mounted = false;
+      if (manager) {
+        manager.stopStream();
+      }
     };
-  }, []);
+  }, [streamId]);
 
-  const handleStartStream = () => {
-    const streamId = Date.now().toString();
-    navigate(`/streams/live/${streamId}`);
+  const handleStartStream = async () => {
+    if (!streamTitle.trim()) {
+      setError('Please enter a stream title');
+      return;
+    }
+
+    if (!selectedCategory) {
+      setError('Please select a category');
+      return;
+    }
+
+    try {
+      setIsStarting(true);
+      setError(null);
+
+      // TODO: Save stream metadata to database
+      // await database.createDocument(COLLECTIONS.STREAMS, {
+      //   streamId,
+      //   title: streamTitle,
+      //   category: selectedCategory,
+      //   tags: selectedTags,
+      //   isPaid,
+      //   price: isPaid ? parseFloat(price) : 0,
+      //   status: 'live'
+      // });
+
+      // Navigate to live stream view
+      navigate(`/streams/live/${streamId}`);
+    } catch (error) {
+      console.error('Failed to start stream:', error);
+      setError('Failed to start stream. Please try again.');
+    } finally {
+      setIsStarting(false);
+    }
   };
 
   const toggleTag = (tag: string) => {
@@ -81,14 +145,30 @@ const CreateStream = () => {
             <button
               onClick={() => navigate('/streams')}
               className="text-gray-500 hover:text-gray-700"
+              disabled={isStarting}
             >
               <X className="w-6 h-6" />
             </button>
           </div>
 
+          {/* Error Display */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           <div className="space-y-6">
             {/* Stream Preview */}
             <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
+                  <div className="text-white text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-2"></div>
+                    <p>Initializing camera...</p>
+                  </div>
+                </div>
+              )}
               <video
                 ref={videoRef}
                 autoPlay
@@ -199,10 +279,19 @@ const CreateStream = () => {
         <div className="border-t p-6 bg-gray-50">
           <button
             onClick={handleStartStream}
-            disabled={!streamTitle || !selectedCategory}
-            className="w-full py-2 px-4 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            disabled={isStarting || isLoading || !streamTitle || !selectedCategory}
+            className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            Start Streaming
+            {isStarting ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Starting Stream...
+              </>
+            ) : isLoading ? (
+              'Initializing...'
+            ) : (
+              'Start Streaming'
+            )}
           </button>
         </div>
       </div>

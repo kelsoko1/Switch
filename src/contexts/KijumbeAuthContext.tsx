@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { services, database, COLLECTIONS } from '../lib/appwrite';
-import { Models } from 'appwrite';
+import { Models, Query } from 'appwrite';
 
 interface User extends Models.Document {
   email: string;
@@ -50,8 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const account = await services.account.get();
       if (account) {
         const response = await database.listDocuments(COLLECTIONS.USERS, [
-          `email=${account.email}`,
-          'limit(1)'
+          Query.equal('email', account.email),
+          Query.limit(1)
         ]);
 
         if (response.total > 0) {
@@ -73,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setError(null);
       
       // Create session with Appwrite
-      await services.account.createEmailSession(email, password);
+      await services.account.createSession(email, password);
       
       // Get user details from database
       const response = await database.listDocuments(COLLECTIONS.USERS, [

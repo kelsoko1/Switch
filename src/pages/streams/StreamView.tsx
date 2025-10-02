@@ -60,18 +60,38 @@ const StreamView: React.FC<StreamViewProps> = ({ useJanus = false }) => {
           await janusManagerInstance.initialize();
           setJanusManager(janusManagerInstance);
         } else {
-          // Initialize simple WebRTC stream manager
-          streamManagerInstance = createSimpleWebRTCManager({
-            onRemoteStream: (stream) => {
-              if (videoRef.current) {
-                videoRef.current.srcObject = stream;
+          // Initialize simple WebRTC stream manager with correct signature
+          streamManagerInstance = createSimpleWebRTCManager(id, false, {
+            onConnectionStateChange: (state) => {
+              console.log('Connection state:', state);
+              if (state === 'failed') {
+                setError('Connection failed. Please check your internet connection.');
+              } else if (state === 'disconnected') {
+                setError('Stream disconnected.');
               }
-            },
-            onViewerCountChange: (count) => {
-              setViewerCount(count);
             }
           });
+          
           await streamManagerInstance.initialize();
+          
+          // Set up track handler for remote stream
+          streamManagerInstance.onTrack((stream) => {
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+            }
+          });
+          
+          // Set up peer connection handlers
+          streamManagerInstance.onPeerConnected((peerId) => {
+            console.log('Peer connected:', peerId);
+            setViewerCount(prev => prev + 1);
+          });
+          
+          streamManagerInstance.onPeerDisconnected((peerId) => {
+            console.log('Peer disconnected:', peerId);
+            setViewerCount(prev => Math.max(0, prev - 1));
+          });
+          
           setStreamManager(streamManagerInstance);
         }
 
@@ -79,9 +99,10 @@ const StreamView: React.FC<StreamViewProps> = ({ useJanus = false }) => {
         chatManagerInstance = new ChatManager();
         setChatManager(chatManagerInstance);
 
-        // Load chat history
-        const history = await chatManagerInstance.getChatHistory(id);
-        setMessages(history);
+        // Load chat history for the stream (group chat)
+        // Note: For stream chat, we should use a different approach
+        // For now, we'll initialize with empty messages
+        setMessages([]);
       } catch (err) {
         console.error('Error initializing stream:', err);
         setError('Failed to initialize stream');
@@ -95,14 +116,12 @@ const StreamView: React.FC<StreamViewProps> = ({ useJanus = false }) => {
     // Cleanup
     return () => {
       if (streamManagerInstance) {
-        streamManagerInstance.cleanup();
+        streamManagerInstance.stopStream();
       }
       if (janusManagerInstance) {
         janusManagerInstance.cleanup();
       }
-      if (chatManagerInstance) {
-        chatManagerInstance.cleanup();
-      }
+      // ChatManager doesn't have cleanup method
     };
   }, [id, user, useJanus]);
 
@@ -115,7 +134,7 @@ const StreamView: React.FC<StreamViewProps> = ({ useJanus = false }) => {
 
   // Message handling
   const handleSendMessage = async () => {
-    if (!message.trim() || !chatManager || !user) return;
+    if (!message.trim() || !chatManager || !user || !id) return;
 
     try {
       const newMessage = await chatManager.sendMessage(id, message);

@@ -41,31 +41,26 @@ export class ChatManager {
         return;
       }
 
-      // Create XMPP manager
-      this.xmppManager = createSimpleXMPPManager({
-        jid: account.email,
-        password: account.$id, // Use Appwrite user ID as password
-        host: 'xmpp.switch.app',
-        port: 5222
-      });
+      // Create XMPP manager with correct signature
+      this.xmppManager = createSimpleXMPPManager(
+        account.email.split('@')[0], // username
+        account.$id, // password - Use Appwrite user ID
+        {
+          server: 'wss://xmpp.switch.app:5280/ws',
+          domain: 'switch.app',
+          debug: false
+        }
+      );
 
-      // Set up event handlers
-      this.xmppManager.on('connect', () => {
+      // Set up event handlers if manager was created successfully
+      if (this.xmppManager) {
+        // Note: SimpleXMPPManager doesn't have .on() method
+        // It uses direct method calls for connection
+        // Connect
+        await this.xmppManager.connect();
         this.isXMPPConnected = true;
         console.log('XMPP connected');
-      });
-
-      this.xmppManager.on('disconnect', () => {
-        this.isXMPPConnected = false;
-        console.log('XMPP disconnected');
-      });
-
-      this.xmppManager.on('error', (error) => {
-        console.error('XMPP error:', error);
-      });
-
-      // Connect
-      await this.xmppManager.connect();
+      }
     } catch (error) {
       console.error('Error initializing XMPP:', error);
       this.isXMPPConnected = false;
