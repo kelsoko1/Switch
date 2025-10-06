@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { appwrite, COLLECTIONS } from '../../lib/appwrite';
+import { database, COLLECTIONS } from '../../lib/appwrite';
 import { Query } from 'appwrite';
+import { CreateSavingsGoalModal } from './CreateSavingsGoalModal';
+import { JoinGroupModal } from './JoinGroupModal';
+import { CreateGroupModal } from '../CreateGroupModal';
 import {
   Users,
   Target,
   Plus,
   Crown,
-  TrendingUp,
-  ArrowRight,
-  Eye,
-  EyeOff,
   Settings,
   History
 } from 'lucide-react';
@@ -54,11 +53,10 @@ interface KijumbeServiceCardProps {
   onTransaction: () => void;
 }
 
-const KijumbeServiceCard: React.FC<KijumbeServiceCardProps> = ({ wallet, onTransaction }) => {
+const KijumbeServiceCard: React.FC<KijumbeServiceCardProps> = ({ wallet }) => {
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (wallet) {
@@ -74,14 +72,14 @@ const KijumbeServiceCard: React.FC<KijumbeServiceCardProps> = ({ wallet, onTrans
     
     try {
       // Fetch savings goals
-      const goalsResponse = await appwrite.listDocuments(COLLECTIONS.SAVINGS_GOALS, [
+      const goalsResponse = await database.listDocuments(COLLECTIONS.SAVINGS_GOALS, [
         Query.equal('userId', wallet.userId),
         Query.orderDesc('createdAt')
       ]);
       setSavingsGoals(goalsResponse.documents as SavingsGoal[]);
 
       // Fetch groups (both as member and kiongozi)
-      const groupsResponse = await appwrite.listDocuments(COLLECTIONS.GROUPS, [
+      const groupsResponse = await database.listDocuments(COLLECTIONS.GROUPS, [
         Query.equal('kiongoziId', wallet.userId),
         Query.orderDesc('createdAt')
       ]);
@@ -89,7 +87,6 @@ const KijumbeServiceCard: React.FC<KijumbeServiceCardProps> = ({ wallet, onTrans
 
     } catch (err: any) {
       console.error('Failed to fetch Kijumbe data:', err);
-      setError(err.message || 'Failed to load Kijumbe data.');
     } finally {
       setLoading(false);
     }
@@ -110,19 +107,34 @@ const KijumbeServiceCard: React.FC<KijumbeServiceCardProps> = ({ wallet, onTrans
     });
   };
 
+  const [showCreateGoalModal, setShowCreateGoalModal] = useState(false);
+  const [showJoinGroupModal, setShowJoinGroupModal] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+
   const handleCreateGoal = () => {
-    // TODO: Implement create savings goal modal
-    console.log('Create savings goal');
+    setShowCreateGoalModal(true);
   };
 
   const handleJoinGroup = () => {
-    // TODO: Implement join group modal
-    console.log('Join group');
+    setShowJoinGroupModal(true);
   };
 
   const handleCreateGroup = () => {
-    // TODO: Implement create group modal
-    console.log('Create group');
+    setShowCreateGroupModal(true);
+  };
+
+  const handleGoalCreated = (goal: any) => {
+    console.log('Goal created:', goal);
+    fetchKijumbeData();
+  };
+
+  const handleGroupJoined = (groupId: string) => {
+    console.log('Joined group:', groupId);
+    fetchKijumbeData();
+  };
+
+  const handleGroupCreated = () => {
+    fetchKijumbeData();
   };
 
   if (loading) {
@@ -311,6 +323,28 @@ const KijumbeServiceCard: React.FC<KijumbeServiceCardProps> = ({ wallet, onTrans
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      {showCreateGoalModal && (
+        <CreateSavingsGoalModal
+          onClose={() => setShowCreateGoalModal(false)}
+          onGoalCreated={handleGoalCreated}
+        />
+      )}
+
+      {showJoinGroupModal && (
+        <JoinGroupModal
+          onClose={() => setShowJoinGroupModal(false)}
+          onGroupJoined={handleGroupJoined}
+        />
+      )}
+
+      {showCreateGroupModal && (
+        <CreateGroupModal
+          onClose={() => setShowCreateGroupModal(false)}
+          onGroupCreated={handleGroupCreated}
+        />
+      )}
     </div>
   );
 };

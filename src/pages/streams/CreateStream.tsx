@@ -2,9 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Camera, DollarSign, Mic } from 'lucide-react';
 import { SimpleWebRTCManager, createSimpleWebRTCManager } from '../../lib/webrtc-simple';
+import { liveStreamService } from '../../services/liveStreamService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const CreateStream = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [streamTitle, setStreamTitle] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -87,16 +90,20 @@ const CreateStream = () => {
       setIsStarting(true);
       setError(null);
 
-      // TODO: Save stream metadata to database
-      // await database.createDocument(COLLECTIONS.STREAMS, {
-      //   streamId,
-      //   title: streamTitle,
-      //   category: selectedCategory,
-      //   tags: selectedTags,
-      //   isPaid,
-      //   price: isPaid ? parseFloat(price) : 0,
-      //   status: 'live'
-      // });
+      // Save stream metadata to database
+      const streamData = await liveStreamService.createStream({
+        streamId,
+        title: streamTitle,
+        streamerId: user?.$id || 'anonymous',
+        streamerName: user?.name || 'Anonymous User',
+        category: selectedCategory,
+        tags: selectedTags,
+        isPaid,
+        price: isPaid ? parseFloat(price) : 0,
+        thumbnailUrl: '', // Can be added later with screenshot
+        viewerCount: 0,
+        likeCount: 0,
+      });
 
       // Navigate to live stream view
       navigate(`/streams/live/${streamId}`);

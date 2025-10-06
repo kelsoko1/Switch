@@ -1,0 +1,365 @@
+{
+    email adamreuben@bongocloud.co.tz
+}
+
+airtel.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone airtel.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key airtel
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy airtel_service:9867
+}
+
+azampay.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone azampay.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key azampayment
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy azampay_service:9868
+}
+
+falcomimage.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone falcomimage.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key falcomimagebongo
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy falcomimage:9813
+}
+
+5f199f5e-a2c7-4242-9bfd-0453aab4aa8f.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone 5f199f5e-a2c7-4242-9bfd-0453aab4aa8f.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key bongoinvoice
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy invoice:9997
+}
+
+ismart.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone ismart.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key ismartazampayment
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy ismart_azampay_service:9869
+}
+
+gasview.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone gasview.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key gasview
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy gasview_service:9871
+}
+
+valkey.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone valkey.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key gasview
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy gasjanja_valkey:6379
+}
+
+selcom.smart-luku.co.tz {
+    route {
+        rate_limit {
+            zone selcom.smart-luku.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key selcompay
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy selcom_service:9872
+}
+
+payment.smart-luku.co.tz {
+    route {
+        rate_limit {
+            zone payment.smart-luku.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key paymentazampay
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy azampay_switch_africa_service:9873
+}
+
+app.smart-luku.co.tz {
+    route {
+        rate_limit {
+            zone app.smart-luku.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key smartlukuapp
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy smartlukuapp:4200
+}
+
+udp.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone udp.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key gasview
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy localhost:12345
+}
+
+350d4acf-b686-4efb-8aa6-e42e271b5239.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone 350d4acf-b686-4efb-8aa6-e42e271b5239.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key gasjanjacallback
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy gasjanjacallback_service:8080
+}
+
+database.gasjanja.co.tz {
+    route {
+        rate_limit {
+            zone database.gasjanja.co.tz {
+                match {
+                    method POST
+                }
+                match {
+                    method GET
+                }
+                match {
+                    method PUT
+                }
+                match {
+                    method DELETE
+                }
+
+                key rethink_database
+                events 100
+                window 1m
+            }
+        }
+    }
+    reverse_proxy localhost:28015
+}
+
+rethinkdb.gasjanja.co.tz {
+    reverse_proxy gasjanja_database:8080
+}
+
+bongomail.bongocloud.co.tz {
+    respond "Mail server TLS check OK"
+}
+
+bongomailapi.bongocloud.co.tz {
+    reverse_proxy bongomail:9894
+}
+
+# Switch App - kijumbesmart.co.tz
+kijumbesmart.co.tz {
+    reverse_proxy switch-app:2025 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up Connection {>Connection}
+        header_up Upgrade {>Upgrade}
+    }
+}

@@ -28,6 +28,7 @@
     "appwrite:init": "node -r esm src/scripts/initializeAppwriteCollections.js",
     "appwrite:seed": "node scripts/seed-appwrite.js",
     "appwrite:init-status": "node src/scripts/initializeStatusCollections.js",
+    "appwrite:verify": "node scripts/verify-collections.js",
     "postinstall": "cd server && npm install",
     "setup:server": "./scripts/setup-server.sh",
     "update:server": "./scripts/update-server.sh",

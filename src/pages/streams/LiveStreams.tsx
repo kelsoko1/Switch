@@ -3,6 +3,8 @@ import { Plus, Users, Heart, Share2, Gift, Video, Upload, Radio } from 'lucide-r
 import { Link, useNavigate } from 'react-router-dom';
 import StatusArea from '../../components/status/StatusArea';
 import { videoService } from '../../services/videoService';
+import { LazyImage } from '../../components/ui/LazyImage';
+import { StreamGridSkeleton } from '../../components/ui/skeleton';
 
 interface Stream {
   id: string;

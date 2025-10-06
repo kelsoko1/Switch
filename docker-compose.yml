@@ -1,15 +1,9 @@
-version: '3.8'
-
 # ============================================
 # Networks Configuration
 # ============================================
 networks:
-  switch-network:
-    name: switch-network
+  switch-app-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
 
 # ============================================
 # Volumes Configuration
@@ -43,8 +37,7 @@ services:
     container_name: switch-app
     restart: unless-stopped
     networks:
-      switch-network:
-        ipv4_address: 172.20.0.10
+      - switch-app-network
     ports:
       - "2025:2025"  # Main application port
     volumes:
@@ -154,8 +147,7 @@ services:
     container_name: switch-ejabberd
     restart: unless-stopped
     networks:
-      switch-network:
-        ipv4_address: 172.20.0.20
+      - switch-app-network
     volumes:
       - ejabberd-conf:/home/ejabberd/conf
       - ejabberd-database:/home/ejabberd/database
@@ -180,8 +172,7 @@ services:
     container_name: switch-janus
     restart: unless-stopped
     networks:
-      switch-network:
-        ipv4_address: 172.20.0.30
+      - switch-app-network
     volumes:
       - janus-conf:/usr/local/etc/janus
     ports:
@@ -191,7 +182,7 @@ services:
       - "10000-10200:10000-10200/udp"  # RTP/RTCP ports
     environment:
       - DOCKER_IP=${DOCKER_IP:-kijumbesmart.co.tz}
-      - DOCKER_NETWORK=switch-network
+      - DOCKER_NETWORK=switch-app-network
     logging:
       driver: "json-file"
       options:

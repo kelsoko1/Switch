@@ -28,7 +28,30 @@ export default defineConfig(({ mode }) => {
     build: {
       commonjsOptions: {
         transformMixedEsModules: true,
-      }
+      },
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // Vendor chunks
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'ui-vendor': [
+              '@radix-ui/react-avatar',
+              '@radix-ui/react-dropdown-menu',
+              '@radix-ui/react-label',
+              '@radix-ui/react-popover',
+              '@radix-ui/react-scroll-area',
+              '@radix-ui/react-select',
+              '@radix-ui/react-slot',
+              '@radix-ui/react-switch',
+              '@radix-ui/react-toast',
+            ],
+            'appwrite': ['appwrite'],
+            'icons': ['lucide-react'],
+            'utils': ['date-fns', 'clsx', 'tailwind-merge'],
+          },
+        },
+      },
+      chunkSizeWarningLimit: 600,
     },
     define: {
       global: 'globalThis',

@@ -142,11 +142,12 @@ const initializeDatabaseIndexes = async () => {
 };
 
 // Initialize database indexes when this module is loaded
-if (process.env.NODE_ENV !== 'test') {
-  initializeDatabaseIndexes().catch(err => {
-    logger.error('Failed to initialize database indexes:', err);
-  });
-}
+// DISABLED: Requires API key with collections.write scope
+// if (process.env.NODE_ENV !== 'test') {
+//   initializeDatabaseIndexes().catch(err => {
+//     logger.error('Failed to initialize database indexes:', err);
+//   });
+// }
 
 module.exports = {
   // Appwrite clients

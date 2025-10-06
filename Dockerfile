@@ -52,15 +52,17 @@ RUN mkdir -p /app/logs /app/uploads /app/temp
 # Copy built frontend from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy server files from builder
-COPY --from=builder /app/server/dist ./server
+# Copy server files from builder (no dist folder, copy source directly)
+COPY --from=builder /app/server/*.js ./server/
+COPY --from=builder /app/server/config ./server/config
+COPY --from=builder /app/server/routes ./server/routes
+COPY --from=builder /app/server/middleware ./server/middleware
+COPY --from=builder /app/server/utils ./server/utils
+COPY --from=builder /app/server/services ./server/services
 COPY --from=builder /app/server/package*.json ./server/
 
-# Copy node_modules from builder (server dependencies)
+# Copy node_modules from builder (server dependencies already installed)
 COPY --from=builder /app/server/node_modules ./server/node_modules
-
-# Install only production dependencies for server
-RUN cd server && npm ci --only=production --legacy-peer-deps
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -86,5 +88,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Use tini as entrypoint for proper signal handling
 ENTRYPOINT ["/sbin/tini", "--"]
 
+# Change to server directory so node can find dependencies
+WORKDIR /app/server
+
 # Start the application
-CMD ["node", "server/index.js"]
+CMD ["node", "index.js"]
